@@ -6,15 +6,22 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, Play, Pause, Users, Download, Send, Activity } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Question } from '@/types/database'
+
+interface SessionSummary {
+  id: string; user_email: string; user_name: string | null; status: string
+  fullscreen_violations: number; tab_switch_violations: number
+  questions_answered: number; total_score: number
+}
 
 export default function RoundDetailPage() {
   const params = useParams()
@@ -22,6 +29,7 @@ export default function RoundDetailPage() {
   const roundId = params.id as string
   const [round, setRound] = useState<any>(null)
   const [questions, setQuestions] = useState<Question[]>([])
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [addQuestionOpen, setAddQuestionOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -35,12 +43,14 @@ export default function RoundDetailPage() {
   })
 
   const fetchData = async () => {
-    const [rRes, qRes] = await Promise.all([
+    const [rRes, qRes, sRes] = await Promise.all([
       fetch(`/api/admin/rounds/${roundId}`),
       fetch(`/api/admin/rounds/${roundId}/questions`),
+      fetch(`/api/admin/rounds/${roundId}/sessions`),
     ])
     if (rRes.ok) setRound(await rRes.json())
     if (qRes.ok) setQuestions(await qRes.json())
+    if (sRes.ok) setSessions(await sRes.json())
     setLoading(false)
   }
 
@@ -58,8 +68,15 @@ export default function RoundDetailPage() {
       try { body.test_cases = JSON.parse(qf.test_cases) } catch { toast.error('Invalid test cases JSON'); return }
     }
     const res = await fetch(`/api/admin/rounds/${roundId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (res.ok) { toast.success('Question added'); setAddQuestionOpen(false); fetchData() }
-    else { const err = await res.json(); toast.error(err.error || 'Failed') }
+    if (res.ok) {
+      toast.success('Question added')
+      setAddQuestionOpen(false)
+      setQf({ ...qf, title: '', description: '', code_snippet: '', expected_output: '', starter_code: '', sequence_order: questions.length + 2 })
+      fetchData()
+    } else {
+      const err = await res.json()
+      toast.error(err.error || 'Failed')
+    }
   }
 
   const handleDeleteQuestion = async (qid: string) => {
@@ -72,7 +89,7 @@ export default function RoundDetailPage() {
     const emailList = emails.split(/[\n,]/).map(e => e.trim()).filter(Boolean)
     if (!emailList.length) return
     const res = await fetch('/api/admin/invitations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ round_id: roundId, emails: emailList }) })
-    if (res.ok) { const d = await res.json(); toast.success(`Invited ${d.created} candidates`); setInviteOpen(false); setEmails('') }
+    if (res.ok) { const d = await res.json(); toast.success(`Invited ${d.created} candidates`); setInviteOpen(false); setEmails(''); fetchData() }
     else toast.error('Failed to send invitations')
   }
 
@@ -85,6 +102,11 @@ export default function RoundDetailPage() {
   const handlePause = async () => {
     const res = await fetch(`/api/admin/rounds/${roundId}/pause`, { method: 'POST' })
     if (res.ok) { toast.success('Paused'); fetchData() }
+  }
+
+  const getSessionStatusBadge = (status: string) => {
+    const map: Record<string, any> = { started: 'success', completed: 'secondary', timed_out: 'warning', disqualified: 'destructive', invited: 'outline' }
+    return <Badge variant={map[status] || 'outline'}>{status === 'started' ? 'Active' : status.replace(/_/g, ' ')}</Badge>
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
@@ -122,10 +144,18 @@ export default function RoundDetailPage() {
         </div>
       </div>
 
+      {/* Stats cards */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Questions</div><div className="text-2xl font-bold">{questions.length}</div></CardContent></Card>
+        <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Candidates</div><div className="text-2xl font-bold">{sessions.length}</div></CardContent></Card>
+        <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Active</div><div className="text-2xl font-bold text-green-600">{sessions.filter(s => s.status === 'started').length}</div></CardContent></Card>
+        <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Completed</div><div className="text-2xl font-bold text-indigo-600">{sessions.filter(s => s.status === 'completed').length}</div></CardContent></Card>
+      </div>
+
       <Tabs defaultValue="questions">
         <TabsList>
           <TabsTrigger value="questions">Questions ({questions.length})</TabsTrigger>
-          <TabsTrigger value="candidates">Candidates</TabsTrigger>
+          <TabsTrigger value="candidates">Candidates ({sessions.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="questions" className="mt-4">
@@ -199,13 +229,54 @@ export default function RoundDetailPage() {
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
               <DialogTrigger asChild><Button><Send className="h-4 w-4 mr-2" />Invite Candidates</Button></DialogTrigger>
               <DialogContent>
-                <DialogHeader><DialogTitle>Invite Candidates</DialogTitle><DialogDescription>Enter emails, one per line.</DialogDescription></DialogHeader>
+                <DialogHeader><DialogTitle>Invite Candidates</DialogTitle><DialogDescription>Enter emails, one per line or comma separated.</DialogDescription></DialogHeader>
                 <Textarea value={emails} onChange={e => setEmails(e.target.value)} rows={8} placeholder={"alice@example.com\nbob@example.com"} />
                 <DialogFooter><Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button><Button onClick={handleInvite}>Send Invitations</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
-          <Card><CardContent className="py-8 text-center text-gray-500">Invite candidates to see them here.</CardContent></Card>
+
+          {sessions.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-gray-500">No candidates yet. Invite candidates to see them here.</CardContent></Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Candidate</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Violations</TableHead>
+                    <TableHead className="text-center">Answered</TableHead>
+                    <TableHead className="text-center">Score</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sessions.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell>
+                        <div className="font-medium">{s.user_name || 'Unknown'}</div>
+                        <div className="text-sm text-gray-500">{s.user_email}</div>
+                      </TableCell>
+                      <TableCell>{getSessionStatusBadge(s.status)}</TableCell>
+                      <TableCell className="text-center">
+                        {s.fullscreen_violations > 0 && <span className="text-red-600 text-sm mr-2">FS:{s.fullscreen_violations}</span>}
+                        {s.tab_switch_violations > 0 && <span className="text-amber-600 text-sm">Tab:{s.tab_switch_violations}</span>}
+                        {s.fullscreen_violations === 0 && s.tab_switch_violations === 0 && <span className="text-gray-400">-</span>}
+                      </TableCell>
+                      <TableCell className="text-center">{s.questions_answered}</TableCell>
+                      <TableCell className="text-center font-semibold">{s.total_score}</TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/admin/results/${roundId}?session=${s.id}`}>
+                          <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
