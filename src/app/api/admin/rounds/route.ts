@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 async function getAdminUser(supabase: any) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single()
+  const serviceClient = await createServiceRoleClient()
+  const { data: profile } = await serviceClient.from('users').select('*').eq('id', user.id).single()
   if (!profile || profile.role !== 'admin') return null
   return profile
 }
@@ -14,7 +15,8 @@ export async function GET() {
   const admin = await getAdminUser(supabase)
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data: rounds, error } = await supabase
+  const serviceClient = await createServiceRoleClient()
+  const { data: rounds, error } = await serviceClient
     .from('rounds')
     .select('*, questions(count), candidate_sessions(count)')
     .order('created_at', { ascending: false })
@@ -29,7 +31,8 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { data, error } = await supabase
+  const serviceClient = await createServiceRoleClient()
+  const { data, error } = await serviceClient
     .from('rounds')
     .insert({
       title: body.title,

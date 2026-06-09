@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('email').eq('id', user.id).single()
+  const serviceClient = await createServiceRoleClient()
+  const { data: profile } = await serviceClient.from('users').select('email').eq('id', user.id).single()
   if (!profile) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   // Get rounds where candidate has invitation
-  const { data: invitations } = await supabase
+  const { data: invitations } = await serviceClient
     .from('invitations')
     .select('round_id, token, status')
     .eq('email', profile.email)
@@ -21,14 +22,14 @@ export async function GET() {
   }
 
   const roundIds = invitations.map(i => i.round_id)
-  const { data: rounds } = await supabase
+  const { data: rounds } = await serviceClient
     .from('rounds')
-    .select('id, title, description, type, duration_minutes, is_active')
+    .select('id, title, description, type, duration_minutes, is_active, allowed_languages')
     .in('id', roundIds)
     .eq('is_published', true)
 
   // Also get existing sessions
-  const { data: sessions } = await supabase
+  const { data: sessions } = await serviceClient
     .from('candidate_sessions')
     .select('round_id, status')
     .eq('user_id', user.id)

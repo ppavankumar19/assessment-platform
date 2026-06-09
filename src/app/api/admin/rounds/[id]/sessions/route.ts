@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+  const serviceClient = await createServiceRoleClient()
+  const { data: profile } = await serviceClient.from('users').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data: sessions, error } = await supabase
+  const { data: sessions, error } = await serviceClient
     .from('candidate_sessions')
     .select(`
       *,
@@ -21,7 +22,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: round } = await supabase.from('rounds').select('duration_minutes').eq('id', params.id).single()
+  const { data: round } = await serviceClient.from('rounds').select('duration_minutes').eq('id', params.id).single()
 
   const enriched = sessions?.map((s: any) => ({
     id: s.id,
@@ -33,7 +34,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     fullscreen_violations: s.fullscreen_violations,
     tab_switch_violations: s.tab_switch_violations,
     questions_answered: s.submissions?.filter((sub: any) => sub.is_final).length || 0,
-    total_score: s.submissions?.filter((sub: any) => sub.is_final).reduce((sum: number, sub: any) => sum + sub.score, 0) || 0,
+    total_score: s.submissions?.filter((sub: any) => sub.is_final).reduce((sum: number, sub: any) => sum + (sub.score || 0), 0) || 0,
   }))
 
   return NextResponse.json(enriched)

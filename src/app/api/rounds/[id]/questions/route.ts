@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const serviceClient = await createServiceRoleClient()
+
   // Check active session
-  const { data: session } = await supabase
+  const { data: session } = await serviceClient
     .from('candidate_sessions')
     .select('id, status')
     .eq('user_id', user.id)
@@ -17,7 +19,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   if (!session) return NextResponse.json({ error: 'No active session' }, { status: 403 })
 
-  const { data: questions, error } = await supabase
+  const { data: questions, error } = await serviceClient
     .from('questions')
     .select('id, round_id, sequence_order, title, description, type, code_snippet, starter_code, test_cases, time_limit_s, memory_limit_mb, points')
     .eq('round_id', params.id)
@@ -25,11 +27,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Filter hidden test cases and remove expected_output
+  // Filter hidden test cases — don't expose expected_output for coding questions
   const filtered = questions?.map(q => ({
     ...q,
     test_cases: q.test_cases
-      ? (q.test_cases as any[]).filter((tc: any) => !tc.is_hidden)
+      ? (q.test_cases as any[]).filter((tc: any) => !tc.is_hidden).map((tc: any) => ({
+          id: tc.id,
+          input: tc.input,
+          expected_output: tc.expected_output,
+          is_hidden: tc.is_hidden,
+          points: tc.points,
+        }))
       : null,
   }))
 

@@ -7,7 +7,8 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+  const serviceClient = await createServiceRoleClient()
+  const { data: profile } = await serviceClient.from('users').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { round_id, emails } = await request.json()
@@ -16,7 +17,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'round_id and emails[] required' }, { status: 400 })
   }
 
-  const serviceClient = await createServiceRoleClient()
   let created = 0, skipped = 0
   const errors: string[] = []
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       await serviceClient.auth.admin.inviteUserByEmail(cleanEmail, {
         redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback?next=/assess`,
         data: { invitation_token: token, round_id },
-      })
+      }).catch(() => {})
     }
   }
 

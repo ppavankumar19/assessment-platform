@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+  const serviceClient = await createServiceRoleClient()
+  const { data: profile } = await serviceClient.from('users').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { searchParams } = new URL(request.url)
-  const format = searchParams.get('format') || 'csv'
+  const { data: round } = await serviceClient.from('rounds').select('title').eq('id', params.id).single()
 
-  const { data: round } = await supabase.from('rounds').select('title').eq('id', params.id).single()
-
-  const { data: sessions } = await supabase
+  const { data: sessions } = await serviceClient
     .from('candidate_sessions')
     .select(`
       *,
@@ -25,7 +23,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   if (!sessions) return NextResponse.json({ error: 'No data' }, { status: 404 })
 
-  // CSV export
   const rows: string[] = [
     'candidate_email,candidate_name,question_title,question_type,status,score,max_points,cpm,wpm,paste_count,total_keystrokes,fullscreen_violations,tab_switch_violations,submitted_at,session_status'
   ]
