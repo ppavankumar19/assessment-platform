@@ -19,22 +19,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
     user_agent: request.headers.get('user-agent') || '',
   })
 
-  // Update violation counts
+  // Handle fullscreen exit violations
   if (event_type === 'fullscreen_exit') {
     const { data: session } = await serviceClient
       .from('candidate_sessions')
-      .select('fullscreen_violations, rounds(fullscreen_violation_limit)')
+      .select('fullscreen_violations, status, rounds(fullscreen_violation_limit)')
       .eq('id', params.id)
       .single()
 
-    const newCount = (session?.fullscreen_violations || 0) + 1
+    if (!session || session.status !== 'started') {
+      return new NextResponse(null, { status: 204 })
+    }
+
+    const newCount = (session.fullscreen_violations || 0) + 1
     await serviceClient
       .from('candidate_sessions')
       .update({ fullscreen_violations: newCount })
       .eq('id', params.id)
 
-    // Auto-disqualify if threshold reached
-    const limit = (session?.rounds as any)?.fullscreen_violation_limit || 3
+    const limit = (session.rounds as any)?.fullscreen_violation_limit || 3
     if (newCount >= limit) {
       await serviceClient
         .from('candidate_sessions')
@@ -45,19 +48,47 @@ export async function POST(request: Request, { params }: { params: { id: string 
         user_id: user.id,
         session_id: params.id,
         event_type: 'disqualified',
-        event_data: { reason: 'fullscreen_violation_limit_exceeded' },
+        event_data: { reason: 'fullscreen_violation_limit_exceeded', count: newCount },
       })
+
+      return NextResponse.json({ disqualified: true }, { status: 200 })
     }
-  } else if (event_type === 'tab_switch') {
-    const { data: s } = await serviceClient
+  }
+
+  // Handle tab switch violations
+  if (event_type === 'tab_switch') {
+    const { data: session } = await serviceClient
       .from('candidate_sessions')
-      .select('tab_switch_violations')
+      .select('tab_switch_violations, status, rounds(tab_switch_limit)')
       .eq('id', params.id)
       .single()
+
+    if (!session || session.status !== 'started') {
+      return new NextResponse(null, { status: 204 })
+    }
+
+    const newCount = (session.tab_switch_violations || 0) + 1
     await serviceClient
       .from('candidate_sessions')
-      .update({ tab_switch_violations: (s?.tab_switch_violations || 0) + 1 })
+      .update({ tab_switch_violations: newCount })
       .eq('id', params.id)
+
+    const limit = (session.rounds as any)?.tab_switch_limit || 5
+    if (newCount >= limit) {
+      await serviceClient
+        .from('candidate_sessions')
+        .update({ status: 'disqualified', completed_at: new Date().toISOString() })
+        .eq('id', params.id)
+
+      await serviceClient.from('audit_logs').insert({
+        user_id: user.id,
+        session_id: params.id,
+        event_type: 'disqualified',
+        event_data: { reason: 'tab_switch_limit_exceeded', count: newCount },
+      })
+
+      return NextResponse.json({ disqualified: true }, { status: 200 })
+    }
   }
 
   return new NextResponse(null, { status: 204 })
