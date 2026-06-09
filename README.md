@@ -1,36 +1,171 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CodeAssess - Technical Assessment Platform
 
-## Getting Started
+A full-stack recruitment assessment platform for technical hiring. Built with Next.js 14, Supabase, and Judge0 for secure, proctored coding assessments.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Assessment Types
+- **Round 1 - C Output Prediction**: Candidates predict the output of C code snippets. Auto-graded with exact match scoring.
+- **Round 2 - Live Coding**: Candidates write code in a Monaco editor with multi-language support (C, C++, Python, JS, Java, Go). Executed and graded via Judge0.
+
+### Anti-Cheat System
+- Fullscreen enforcement with violation tracking and auto-disqualification
+- Tab switch monitoring with configurable limits
+- Paste detection and copy logging
+- Context menu and DevTools blocking
+- Speed metrics tracking (keystrokes, CPM, idle periods, time to first key)
+- Complete audit trail of all candidate actions
+
+### Admin Dashboard
+- Round CRUD with publish/pause lifecycle
+- Question management with code snippets and test cases
+- Candidate invitation via email (Supabase magic links)
+- Real-time session monitoring via Supabase Realtime
+- Per-session results with submissions, test results, speed metrics, and audit logs
+- CSV export of round results
+
+### Security
+- HMAC-signed invitation tokens with timing-safe comparison
+- Row Level Security (RLS) on all database tables
+- Service role client for admin operations
+- Session expiry enforcement (server-side + client-side)
+- Input validation on all API endpoints
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript |
+| Database | PostgreSQL (Supabase) |
+| Auth | Supabase Auth (Google OAuth + Magic Link) |
+| Realtime | Supabase Realtime |
+| Code Editor | Monaco Editor (@monaco-editor/react) |
+| Code Execution | Judge0 CE (via RapidAPI) |
+| UI Components | shadcn/ui + Radix UI + Tailwind CSS |
+| Deployment | Vercel |
+
+## Project Structure
+
+```
+src/
+  app/
+    (auth)/login/          # Login page (Google OAuth + Magic Link)
+    admin/                 # Admin dashboard
+      rounds/[id]/         # Round detail (questions + candidates)
+      monitor/[roundId]/   # Live session monitoring
+      results/[roundId]/   # Session results viewer
+      candidates/          # All candidates overview
+    assess/                # Candidate dashboard
+      [roundId]/           # Round entry + instructions
+      [roundId]/r1/        # Round 1 - Output prediction
+      [roundId]/r2/        # Round 2 - Live coding
+      [roundId]/complete/  # Completion confirmation
+    api/
+      admin/               # Admin API routes (service role)
+      auth/                # Auth callback + bootstrap
+      rounds/              # Candidate rounds API
+      sessions/            # Session events, heartbeat, complete
+      submissions/         # Submission + auto-grading
+      execute/             # Judge0 code execution proxy
+  components/
+    ui/                    # shadcn/ui components
+    admin/                 # Admin navigation
+    assess/                # FullscreenGuard, TimerBar
+  lib/
+    supabase/              # Client, server, middleware
+    scoring/               # Output normalization + scoring
+    judge0/                # Judge0 client + language config
+    auth/                  # HMAC invitation tokens
+    metrics/               # Speed metrics computation
+  types/                   # TypeScript type definitions
+supabase/
+  migrations/              # Database schema (SQL)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prerequisites
+- Node.js 18+
+- Supabase project
+- Judge0 API key (RapidAPI)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Install dependencies
+```bash
+npm install
+```
 
-## Learn More
+### 2. Set up Supabase
+- Create a Supabase project
+- Run the migration in SQL Editor: `supabase/migrations/00001_initial_schema.sql`
+- Enable Google OAuth in Authentication > Providers
+- Enable Realtime for: `candidate_sessions`, `submissions`, `audit_logs`
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Configure environment variables
+Copy `.env.example` to `.env` and fill in:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
+JUDGE0_API_KEY=your-rapidapi-key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXTAUTH_SECRET=random-32-char-string
+INVITATION_SECRET=random-secret-for-hmac
+ADMIN_BOOTSTRAP_TOKEN=random-token
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Bootstrap admin account
+```bash
+npm run dev
+```
+Sign in via Google at `/login`, then run in browser console:
+```js
+fetch('/api/auth/bootstrap', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token: 'your-ADMIN_BOOTSTRAP_TOKEN' })
+}).then(r => r.json()).then(console.log)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 5. Deploy to Vercel
+```bash
+vercel --prod
+```
+Update Supabase Auth redirect URLs to match your Vercel domain.
 
-## Deploy on Vercel
+## API Routes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Admin Routes (require admin role)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/api/admin/rounds` | List/create rounds |
+| GET/PUT/DELETE | `/api/admin/rounds/[id]` | Round CRUD |
+| POST | `/api/admin/rounds/[id]/publish` | Publish round |
+| POST | `/api/admin/rounds/[id]/pause` | Pause round |
+| GET/POST | `/api/admin/rounds/[id]/questions` | Round questions |
+| GET | `/api/admin/rounds/[id]/sessions` | Round sessions |
+| GET | `/api/admin/rounds/[id]/export` | CSV export |
+| POST | `/api/admin/invitations` | Invite candidates |
+| GET | `/api/admin/candidates` | All candidates |
+| PUT/DELETE | `/api/admin/questions/[id]` | Question CRUD |
+| POST | `/api/admin/sessions/[id]/disqualify` | Disqualify |
+| GET | `/api/admin/sessions/[id]/submissions` | Submissions |
+| GET | `/api/admin/sessions/[id]/audit-logs` | Audit logs |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Candidate Routes (require auth)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/rounds` | Available rounds |
+| POST | `/api/rounds/[id]/start` | Start session |
+| GET | `/api/rounds/[id]/questions` | Get questions |
+| POST | `/api/submissions` | Submit answer |
+| POST | `/api/sessions/[id]/events` | Log events |
+| POST | `/api/sessions/[id]/heartbeat` | Heartbeat |
+| POST | `/api/sessions/[id]/complete` | Complete session |
+| POST | `/api/execute` | Execute code (Judge0) |
+| GET | `/api/execute/[token]` | Poll execution result |
+
+## License
+
+MIT
