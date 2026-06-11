@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'admin') redirect('/assess')
+  if (!profile || profile.role !== 'admin') redirect('/test')
 
   return (
     <div className="min-h-screen bg-gray-50">

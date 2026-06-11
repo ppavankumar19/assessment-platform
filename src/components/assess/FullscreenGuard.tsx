@@ -117,7 +117,7 @@ export default function FullscreenGuard({ sessionId, maxViolations = 3, onDisqua
             <Button
               onClick={() => {
                 document.exitFullscreen().catch(() => {})
-                router.push('/assess')
+                router.push('/test')
               }}
               variant="outline"
               className="w-full"

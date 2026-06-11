@@ -841,9 +841,9 @@ export default function TestExamPage() {
       </div>
 
       {/* Main split view */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
         {/* Left: problem description */}
-        <div className="w-2/5 border-r border-slate-700 overflow-y-auto p-6">
+        <div className="w-full md:w-2/5 border-b md:border-b-0 md:border-r border-slate-700 overflow-y-auto p-4 md:p-6 max-h-[40vh] md:max-h-none">
           <h2 className="text-xl font-bold mb-2">{currentQ.title}</h2>
           {currentQ.description && (
             <p className="text-slate-300 mb-4 whitespace-pre-wrap">

@@ -445,7 +445,7 @@ export default function RoundDetailPage() {
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => router.push('/admin')}><ArrowLeft className="h-4 w-4 mr-2" />Rounds</Button>
       </div>
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{round.title}</h1>
@@ -453,7 +453,7 @@ export default function RoundDetailPage() {
               <Pencil className="h-4 w-4" />
             </Button>
           </div>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge variant={round.is_active ? 'success' : round.is_published ? 'secondary' : 'outline'}>
               {round.is_active ? 'Active' : round.is_published ? 'Paused' : 'Draft'}
             </Badge>
@@ -462,7 +462,7 @@ export default function RoundDetailPage() {
           </div>
           {round.description && <p className="text-gray-600 mt-2">{round.description}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {round.is_active ? (
             <Button variant="outline" onClick={handlePause}><Pause className="h-4 w-4 mr-2" />Pause</Button>
           ) : (
@@ -479,7 +479,7 @@ export default function RoundDetailPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Questions</div><div className="text-2xl font-bold">{questions.length}</div></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Candidates</div><div className="text-2xl font-bold">{sessions.length}</div></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Active</div><div className="text-2xl font-bold text-green-600">{sessions.filter(s => s.status === 'started').length}</div></CardContent></Card>

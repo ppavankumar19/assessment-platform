@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 
 interface SessionData {
   session_token: string
+  session_id?: string
   round_id: string
   round_title: string
   round_type: string
   duration_minutes: number
+  expires_at?: string
   candidate_name: string
 }
 

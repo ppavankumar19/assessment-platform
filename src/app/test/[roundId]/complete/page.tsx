@@ -11,9 +11,12 @@ export default function TestCompletePage() {
   const params = useParams()
   const roundId = params.roundId as string
 
-  // Clear session data for this round on mount
+  // Clear session data and exit fullscreen on mount
   useEffect(() => {
     localStorage.removeItem(`test_session_${roundId}`)
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
   }, [roundId])
 
   return (
