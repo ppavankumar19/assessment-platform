@@ -26,6 +26,7 @@ export interface Round {
   pass_score: number;
   fullscreen_violation_limit: number;
   tab_switch_limit: number;
+  cutoff_score: number;
   is_published: boolean;
   is_active: boolean;
   results_released: boolean;
@@ -74,8 +75,14 @@ export interface Invitation {
 
 export interface CandidateSession {
   id: string;
-  user_id: string;
+  user_id: string | null;
   round_id: string;
+  session_token: string | null;
+  candidate_name: string | null;
+  candidate_email: string | null;
+  college_name: string | null;
+  roll_no: string | null;
+  branch: string | null;
   status: SessionStatus;
   started_at: string | null;
   completed_at: string | null;
