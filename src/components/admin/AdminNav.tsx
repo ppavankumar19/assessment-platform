@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Code2, LayoutDashboard, Users, LogOut } from 'lucide-react'
+import { Code2, LayoutDashboard, Users, LogOut, User as UserIcon, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -70,11 +70,23 @@ export default function AdminNav({ user }: { user: User }) {
                 <span className="hidden sm:block text-sm">{user.full_name || user.email}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="text-sm font-medium">{user.full_name || 'Admin'}</div>
-                <div className="text-xs text-gray-500">{user.email}</div>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-medium">
+                    {user.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">{user.full_name || 'Admin'}</div>
+                    <div className="text-xs text-gray-500">{user.email}</div>
+                  </div>
+                </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-default focus:bg-transparent">
+                <Shield className="h-4 w-4 mr-2 text-indigo-600" />
+                <span className="text-sm text-gray-600">Role: <span className="font-medium capitalize">{user.role}</span></span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                 <LogOut className="h-4 w-4 mr-2" />

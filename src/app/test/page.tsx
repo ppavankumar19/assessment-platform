@@ -22,8 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Code2, Clock, FileText, Loader2, ArrowRight } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
+import { Code2, Clock, FileText, Loader2, ArrowRight, LogOut, User } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 
 interface Round {
   id: string
@@ -38,8 +47,10 @@ const BRANCHES = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML', 'O
 
 export default function TestLandingPage() {
   const router = useRouter()
+  const supabase = createClient()
   const [rounds, setRounds] = useState<Round[]>([])
   const [loading, setLoading] = useState(true)
+  const [authUser, setAuthUser] = useState<{ email: string; full_name: string | null } | null>(null)
   const [selectedRound, setSelectedRound] = useState<Round | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [registering, setRegistering] = useState(false)
@@ -57,7 +68,20 @@ export default function TestLandingPage() {
       .then(setRounds)
       .catch(() => setRounds([]))
       .finally(() => setLoading(false))
+
+    // Check if user is logged in
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setAuthUser({ email: user.email || '', full_name: user.user_metadata?.full_name || null })
+      }
+    })
   }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setAuthUser(null)
+    router.push('/login')
+  }
 
   const resetForm = () => {
     setName('')
@@ -134,9 +158,34 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="border-b bg-white">
-        <div className="max-w-5xl mx-auto px-4 py-5 flex items-center gap-3">
-          <Code2 className="h-7 w-7 text-indigo-600" />
-          <span className="text-2xl font-bold text-gray-900">CodeAssess</span>
+        <div className="max-w-5xl mx-auto px-4 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Code2 className="h-7 w-7 text-indigo-600" />
+            <span className="text-2xl font-bold text-gray-900">CodeAssess</span>
+          </div>
+          {authUser && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-medium">
+                    {(authUser.full_name?.[0] || authUser.email[0] || 'U').toUpperCase()}
+                  </div>
+                  <span className="hidden sm:block text-sm">{authUser.full_name || authUser.email}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="text-sm font-medium">{authUser.full_name || 'User'}</div>
+                  <div className="text-xs text-gray-500">{authUser.email}</div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </header>
 
