@@ -13,12 +13,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye, Target } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Question } from '@/types/database'
 
 interface SessionSummary {
   id: string; user_email: string; user_name: string | null; status: string
+  candidate_email: string; college_name: string | null; roll_no: string | null; branch: string | null
   fullscreen_violations: number; tab_switch_violations: number
   questions_answered: number; total_score: number
 }
@@ -33,6 +34,8 @@ export default function RoundDetailPage() {
   const [loading, setLoading] = useState(true)
   const [addQuestionOpen, setAddQuestionOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [cutoffOpen, setCutoffOpen] = useState(false)
+  const [cutoffValue, setCutoffValue] = useState(0)
   const [emails, setEmails] = useState('')
   const [qf, setQf] = useState({
     sequence_order: 1, title: '', description: '',
@@ -104,6 +107,22 @@ export default function RoundDetailPage() {
     if (res.ok) { toast.success('Paused'); fetchData() }
   }
 
+  const handleSaveCutoff = async () => {
+    const res = await fetch(`/api/admin/rounds/${roundId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cutoff_score: cutoffValue }),
+    })
+    if (res.ok) {
+      toast.success('Cutoff score updated')
+      setCutoffOpen(false)
+      fetchData()
+    } else {
+      const err = await res.json()
+      toast.error(err.error || 'Failed to update cutoff')
+    }
+  }
+
   const getSessionStatusBadge = (status: string) => {
     const map: Record<string, any> = { started: 'success', completed: 'secondary', timed_out: 'warning', disqualified: 'destructive', invited: 'outline' }
     return <Badge variant={map[status] || 'outline'}>{status === 'started' ? 'Active' : status.replace(/_/g, ' ')}</Badge>
@@ -139,18 +158,43 @@ export default function RoundDetailPage() {
             <>
               <Link href={`/admin/monitor/${roundId}`}><Button variant="outline"><Activity className="h-4 w-4 mr-2" />Monitor</Button></Link>
               <a href={`/api/admin/rounds/${roundId}/export?format=csv`}><Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button></a>
+              <a href={`/api/admin/rounds/${roundId}/export?format=csv&cutoff=true`}><Button variant="outline"><Download className="h-4 w-4 mr-2" />Export Finalized</Button></a>
             </>
           )}
         </div>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-5 gap-4 mb-6">
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Questions</div><div className="text-2xl font-bold">{questions.length}</div></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Candidates</div><div className="text-2xl font-bold">{sessions.length}</div></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Active</div><div className="text-2xl font-bold text-green-600">{sessions.filter(s => s.status === 'started').length}</div></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="text-sm text-gray-500">Completed</div><div className="text-2xl font-bold text-indigo-600">{sessions.filter(s => s.status === 'completed').length}</div></CardContent></Card>
+        <Card className="cursor-pointer hover:border-indigo-400 transition-colors" onClick={() => { setCutoffValue(round.cutoff_score || 0); setCutoffOpen(true) }}>
+          <CardContent className="pt-4 pb-4">
+            <div className="text-sm text-gray-500 flex items-center gap-1"><Target className="h-3 w-3" />Cutoff</div>
+            <div className="text-2xl font-bold text-purple-600">{round.cutoff_score || 0}</div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Cutoff Score Dialog */}
+      <Dialog open={cutoffOpen} onOpenChange={setCutoffOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Cutoff Score</DialogTitle>
+            <DialogDescription>Candidates scoring at or above this cutoff will be marked as finalized.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Cutoff Score</Label>
+            <Input type="number" value={cutoffValue} onChange={e => setCutoffValue(parseInt(e.target.value) || 0)} className="mt-1" min={0} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCutoffOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveCutoff}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="questions">
         <TabsList>
@@ -244,6 +288,9 @@ export default function RoundDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Candidate</TableHead>
+                    <TableHead>College</TableHead>
+                    <TableHead>Roll No</TableHead>
+                    <TableHead>Branch</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-center">Violations</TableHead>
                     <TableHead className="text-center">Answered</TableHead>
@@ -258,7 +305,17 @@ export default function RoundDetailPage() {
                         <div className="font-medium">{s.user_name || 'Unknown'}</div>
                         <div className="text-sm text-gray-500">{s.user_email}</div>
                       </TableCell>
-                      <TableCell>{getSessionStatusBadge(s.status)}</TableCell>
+                      <TableCell className="text-sm">{s.college_name || '-'}</TableCell>
+                      <TableCell className="text-sm">{s.roll_no || '-'}</TableCell>
+                      <TableCell className="text-sm">{s.branch || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {getSessionStatusBadge(s.status)}
+                          {round.cutoff_score > 0 && s.total_score >= round.cutoff_score && (
+                            <Badge variant="success">Finalized</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         {s.fullscreen_violations > 0 && <span className="text-red-600 text-sm mr-2">FS:{s.fullscreen_violations}</span>}
                         {s.tab_switch_violations > 0 && <span className="text-amber-600 text-sm">Tab:{s.tab_switch_violations}</span>}
