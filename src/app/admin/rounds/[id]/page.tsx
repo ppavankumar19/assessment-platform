@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye, Target, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Question } from '@/types/database'
+import type { Question, TestCase } from '@/types/database'
 
 interface SessionSummary {
   id: string; user_email: string; user_name: string | null; status: string
@@ -24,12 +25,40 @@ interface SessionSummary {
   questions_answered: number; total_score: number
 }
 
-const emptyQuestionForm = () => ({
-  sequence_order: 1, title: '', description: '',
-  type: 'output_prediction' as 'output_prediction' | 'coding',
-  code_snippet: '', expected_output: '', starter_code: '',
-  test_cases: '[{"id":"tc_1","input":"","expected_output":"","is_hidden":false,"points":5}]',
-  time_limit_s: 5, memory_limit_mb: 128, points: 10,
+interface QuestionFormData {
+  sequence_order: number
+  title: string
+  description: string
+  type: 'output_prediction' | 'coding'
+  code_snippet: string
+  expected_output: string
+  starter_code: string
+  test_cases: TestCase[]
+  time_limit_s: number
+  memory_limit_mb: number
+  points: number
+}
+
+const defaultTestCase = (): TestCase => ({
+  id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  input: '',
+  expected_output: '',
+  is_hidden: false,
+  points: 5,
+})
+
+const emptyQuestionForm = (defaultType: 'output_prediction' | 'coding' = 'output_prediction'): QuestionFormData => ({
+  sequence_order: 1,
+  title: '',
+  description: '',
+  type: defaultType,
+  code_snippet: '',
+  expected_output: '',
+  starter_code: '',
+  test_cases: [defaultTestCase()],
+  time_limit_s: 5,
+  memory_limit_mb: 128,
+  points: 10,
 })
 
 export default function RoundDetailPage() {
@@ -53,9 +82,9 @@ export default function RoundDetailPage() {
 
   const [cutoffValue, setCutoffValue] = useState(0)
   const [emails, setEmails] = useState('')
-  const [qf, setQf] = useState(emptyQuestionForm())
+  const [qf, setQf] = useState<QuestionFormData>(emptyQuestionForm())
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
-  const [eqf, setEqf] = useState(emptyQuestionForm())
+  const [eqf, setEqf] = useState<QuestionFormData>(emptyQuestionForm())
 
   // Round edit form
   const [roundForm, setRoundForm] = useState({
@@ -135,22 +164,39 @@ export default function RoundDetailPage() {
   }
 
   // --- Question CRUD ---
-  const handleAddQuestion = async () => {
-    const body: any = { sequence_order: qf.sequence_order, title: qf.title, description: qf.description || null, type: qf.type, points: qf.points }
-    if (qf.type === 'output_prediction') {
-      body.code_snippet = qf.code_snippet
-      body.expected_output = qf.expected_output
-    } else {
-      body.starter_code = qf.starter_code || null
-      body.time_limit_s = qf.time_limit_s
-      body.memory_limit_mb = qf.memory_limit_mb
-      try { body.test_cases = JSON.parse(qf.test_cases) } catch { toast.error('Invalid test cases JSON'); return }
+  const buildQuestionBody = (form: QuestionFormData) => {
+    const body: any = {
+      sequence_order: form.sequence_order, title: form.title,
+      description: form.description || null, type: form.type, points: form.points,
     }
+    if (form.type === 'output_prediction') {
+      body.code_snippet = form.code_snippet
+      body.expected_output = form.expected_output
+      body.starter_code = null
+      body.test_cases = null
+    } else {
+      body.starter_code = form.starter_code || null
+      body.time_limit_s = form.time_limit_s
+      body.memory_limit_mb = form.memory_limit_mb
+      body.code_snippet = null
+      body.expected_output = null
+      body.test_cases = form.test_cases
+    }
+    return body
+  }
+
+  const handleOpenAddQuestion = () => {
+    const defaultType = round?.type === 'live_coding' ? 'coding' : 'output_prediction'
+    setQf({ ...emptyQuestionForm(defaultType), sequence_order: questions.length + 1 })
+    setAddQuestionOpen(true)
+  }
+
+  const handleAddQuestion = async () => {
+    const body = buildQuestionBody(qf)
     const res = await fetch(`/api/admin/rounds/${roundId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) {
       toast.success('Question added')
       setAddQuestionOpen(false)
-      setQf({ ...emptyQuestionForm(), sequence_order: questions.length + 2 })
       fetchData()
     } else {
       const err = await res.json()
@@ -168,7 +214,7 @@ export default function RoundDetailPage() {
       code_snippet: q.code_snippet || '',
       expected_output: q.expected_output || '',
       starter_code: q.starter_code || '',
-      test_cases: q.test_cases ? JSON.stringify(q.test_cases, null, 2) : '[{"id":"tc_1","input":"","expected_output":"","is_hidden":false,"points":5}]',
+      test_cases: q.test_cases && q.test_cases.length > 0 ? q.test_cases : [defaultTestCase()],
       time_limit_s: q.time_limit_s,
       memory_limit_mb: q.memory_limit_mb,
       points: q.points,
@@ -178,23 +224,7 @@ export default function RoundDetailPage() {
 
   const handleEditQuestion = async () => {
     if (!editingQuestion) return
-    const body: any = {
-      sequence_order: eqf.sequence_order, title: eqf.title,
-      description: eqf.description || null, type: eqf.type, points: eqf.points,
-    }
-    if (eqf.type === 'output_prediction') {
-      body.code_snippet = eqf.code_snippet
-      body.expected_output = eqf.expected_output
-      body.starter_code = null
-      body.test_cases = null
-    } else {
-      body.starter_code = eqf.starter_code || null
-      body.time_limit_s = eqf.time_limit_s
-      body.memory_limit_mb = eqf.memory_limit_mb
-      body.code_snippet = null
-      body.expected_output = null
-      try { body.test_cases = JSON.parse(eqf.test_cases) } catch { toast.error('Invalid test cases JSON'); return }
-    }
+    const body = buildQuestionBody(eqf)
     const res = await fetch(`/api/admin/questions/${editingQuestion.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -215,6 +245,34 @@ export default function RoundDetailPage() {
     if (res.ok) { toast.success('Deleted'); fetchData() }
   }
 
+  // --- Test case helpers ---
+  const updateTestCase = useCallback((
+    setter: React.Dispatch<React.SetStateAction<QuestionFormData>>,
+    index: number,
+    field: keyof TestCase,
+    value: any
+  ) => {
+    setter(prev => {
+      const updated = [...prev.test_cases]
+      updated[index] = { ...updated[index], [field]: value }
+      return { ...prev, test_cases: updated }
+    })
+  }, [])
+
+  const addTestCase = useCallback((setter: React.Dispatch<React.SetStateAction<QuestionFormData>>) => {
+    setter(prev => ({
+      ...prev,
+      test_cases: [...prev.test_cases, defaultTestCase()],
+    }))
+  }, [])
+
+  const removeTestCase = useCallback((setter: React.Dispatch<React.SetStateAction<QuestionFormData>>, index: number) => {
+    setter(prev => ({
+      ...prev,
+      test_cases: prev.test_cases.filter((_, i) => i !== index),
+    }))
+  }, [])
+
   // --- Invitations ---
   const handleInvite = async () => {
     const emailList = emails.split(/[\n,]/).map(e => e.trim()).filter(Boolean)
@@ -229,13 +287,16 @@ export default function RoundDetailPage() {
     return <Badge variant={map[status] || 'outline'}>{status === 'started' ? 'Active' : status.replace(/_/g, ' ')}</Badge>
   }
 
-  // --- Question Form Component ---
-  const QuestionFormFields = ({ form, setForm }: { form: typeof qf; setForm: (f: typeof qf) => void }) => (
-    <div className="space-y-4 py-4">
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
+  if (!round) return <div>Round not found</div>
+
+  // Inline question form rendering to avoid re-mount issues
+  const renderQuestionForm = (form: QuestionFormData, setter: React.Dispatch<React.SetStateAction<QuestionFormData>>) => (
+    <div className="space-y-4 py-4 max-h-[65vh] overflow-y-auto pr-1">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Type</Label>
-          <Select value={form.type} onValueChange={(v: any) => setForm({ ...form, type: v })}>
+          <Select value={form.type} onValueChange={(v: any) => setter(prev => ({ ...prev, type: v }))}>
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="output_prediction">Output Prediction</SelectItem>
@@ -243,31 +304,119 @@ export default function RoundDetailPage() {
             </SelectContent>
           </Select>
         </div>
-        <div><Label>Order</Label><Input type="number" value={form.sequence_order} onChange={e => setForm({ ...form, sequence_order: parseInt(e.target.value) || 1 })} className="mt-1" /></div>
+        <div>
+          <Label>Order</Label>
+          <Input type="number" value={form.sequence_order} onChange={e => setter(prev => ({ ...prev, sequence_order: parseInt(e.target.value) || 1 }))} className="mt-1" />
+        </div>
       </div>
-      <div><Label>Title</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="mt-1" placeholder="e.g., Pointer Arithmetic" /></div>
-      <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="mt-1" /></div>
-      <div><Label>Points</Label><Input type="number" value={form.points} onChange={e => setForm({ ...form, points: parseInt(e.target.value) || 10 })} className="mt-1" /></div>
+      <div>
+        <Label>Title</Label>
+        <Input value={form.title} onChange={e => setter(prev => ({ ...prev, title: e.target.value }))} className="mt-1" placeholder="e.g., Pointer Arithmetic" />
+      </div>
+      <div>
+        <Label>Description</Label>
+        <Textarea value={form.description} onChange={e => setter(prev => ({ ...prev, description: e.target.value }))} className="mt-1" />
+      </div>
+      <div>
+        <Label>Points</Label>
+        <Input type="number" value={form.points} onChange={e => setter(prev => ({ ...prev, points: parseInt(e.target.value) || 10 }))} className="mt-1" />
+      </div>
+
       {form.type === 'output_prediction' ? (
         <>
-          <div><Label>C Code Snippet</Label><Textarea value={form.code_snippet} onChange={e => setForm({ ...form, code_snippet: e.target.value })} className="mt-1 font-mono text-sm" rows={10} placeholder="#include<stdio.h>" /></div>
-          <div><Label>Expected Output</Label><Textarea value={form.expected_output} onChange={e => setForm({ ...form, expected_output: e.target.value })} className="mt-1 font-mono text-sm" rows={3} /></div>
+          <div>
+            <Label>C Code Snippet</Label>
+            <Textarea value={form.code_snippet} onChange={e => setter(prev => ({ ...prev, code_snippet: e.target.value }))} className="mt-1 font-mono text-sm" rows={10} placeholder="#include<stdio.h>" />
+          </div>
+          <div>
+            <Label>Expected Output</Label>
+            <Textarea value={form.expected_output} onChange={e => setter(prev => ({ ...prev, expected_output: e.target.value }))} className="mt-1 font-mono text-sm" rows={3} />
+          </div>
         </>
       ) : (
         <>
-          <div><Label>Starter Code</Label><Textarea value={form.starter_code} onChange={e => setForm({ ...form, starter_code: e.target.value })} className="mt-1 font-mono text-sm" rows={5} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><Label>Time Limit (s)</Label><Input type="number" value={form.time_limit_s} onChange={e => setForm({ ...form, time_limit_s: parseInt(e.target.value) || 5 })} className="mt-1" /></div>
-            <div><Label>Memory (MB)</Label><Input type="number" value={form.memory_limit_mb} onChange={e => setForm({ ...form, memory_limit_mb: parseInt(e.target.value) || 128 })} className="mt-1" /></div>
+          <div>
+            <Label>Starter Code</Label>
+            <Textarea value={form.starter_code} onChange={e => setter(prev => ({ ...prev, starter_code: e.target.value }))} className="mt-1 font-mono text-sm" rows={5} />
           </div>
-          <div><Label>Test Cases (JSON)</Label><Textarea value={form.test_cases} onChange={e => setForm({ ...form, test_cases: e.target.value })} className="mt-1 font-mono text-sm" rows={8} /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Time Limit (s)</Label>
+              <Input type="number" value={form.time_limit_s} onChange={e => setter(prev => ({ ...prev, time_limit_s: parseInt(e.target.value) || 5 }))} className="mt-1" />
+            </div>
+            <div>
+              <Label>Memory (MB)</Label>
+              <Input type="number" value={form.memory_limit_mb} onChange={e => setter(prev => ({ ...prev, memory_limit_mb: parseInt(e.target.value) || 128 }))} className="mt-1" />
+            </div>
+          </div>
+
+          {/* Test Cases UI */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Test Cases ({form.test_cases.length})</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => addTestCase(setter)}>
+                <Plus className="h-3 w-3 mr-1" />Add Test Case
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
+              {form.test_cases.map((tc, i) => (
+                <div key={tc.id || i} className="bg-white border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Test Case {i + 1}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-500">Hidden</Label>
+                        <Switch
+                          checked={tc.is_hidden}
+                          onCheckedChange={(v) => updateTestCase(setter, i, 'is_hidden', v)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Label className="text-xs text-gray-500">Pts</Label>
+                        <Input
+                          type="number"
+                          value={tc.points}
+                          onChange={e => updateTestCase(setter, i, 'points', parseInt(e.target.value) || 0)}
+                          className="w-16 h-7 text-xs"
+                        />
+                      </div>
+                      {form.test_cases.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTestCase(setter, i)}>
+                          <Trash2 className="h-3 w-3 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-gray-500">Input</Label>
+                      <Textarea
+                        value={tc.input}
+                        onChange={e => updateTestCase(setter, i, 'input', e.target.value)}
+                        className="mt-0.5 font-mono text-xs"
+                        rows={2}
+                        placeholder="stdin input..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Expected Output</Label>
+                      <Textarea
+                        value={tc.expected_output}
+                        onChange={e => updateTestCase(setter, i, 'expected_output', e.target.value)}
+                        className="mt-0.5 font-mono text-xs"
+                        rows={2}
+                        placeholder="expected stdout..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </>
       )}
     </div>
   )
-
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
-  if (!round) return <div>Round not found</div>
 
   return (
     <div>
@@ -385,12 +534,12 @@ export default function RoundDetailPage() {
 
       {/* Edit Question Dialog */}
       <Dialog open={editQuestionOpen} onOpenChange={setEditQuestionOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Question</DialogTitle>
             <DialogDescription>Update question details.</DialogDescription>
           </DialogHeader>
-          <QuestionFormFields form={eqf} setForm={setEqf} />
+          {renderQuestionForm(eqf, setEqf)}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditQuestionOpen(false)}>Cancel</Button>
             <Button onClick={handleEditQuestion} disabled={!eqf.title}>Save Changes</Button>
@@ -407,10 +556,14 @@ export default function RoundDetailPage() {
         <TabsContent value="questions" className="mt-4">
           <div className="flex justify-end mb-4">
             <Dialog open={addQuestionOpen} onOpenChange={setAddQuestionOpen}>
-              <DialogTrigger asChild><Button disabled={round.is_active}><Plus className="h-4 w-4 mr-2" />Add Question</Button></DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogTrigger asChild>
+                <Button disabled={round.is_active} onClick={handleOpenAddQuestion}>
+                  <Plus className="h-4 w-4 mr-2" />Add Question
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>Add Question</DialogTitle><DialogDescription>Add a new question to this round.</DialogDescription></DialogHeader>
-                <QuestionFormFields form={qf} setForm={setQf} />
+                {renderQuestionForm(qf, setQf)}
                 <DialogFooter><Button variant="outline" onClick={() => setAddQuestionOpen(false)}>Cancel</Button><Button onClick={handleAddQuestion} disabled={!qf.title}>Add</Button></DialogFooter>
               </DialogContent>
             </Dialog>
@@ -434,6 +587,9 @@ export default function RoundDetailPage() {
                           <div className="flex items-center gap-2 mt-1">
                             <Badge variant="secondary">{q.type === 'output_prediction' ? 'Output Pred.' : 'Coding'}</Badge>
                             <span className="text-sm text-gray-500">{q.points} pts</span>
+                            {q.type === 'coding' && q.test_cases && (
+                              <span className="text-xs text-gray-400">{q.test_cases.length} test cases</span>
+                            )}
                           </div>
                         </div>
                         {expandedQ === q.id
@@ -492,7 +648,7 @@ export default function RoundDetailPage() {
                         {q.test_cases && q.test_cases.length > 0 && (
                           <div>
                             <Label className="text-xs text-gray-500">Test Cases ({q.test_cases.length})</Label>
-                            <div className="mt-1 space-y-2">
+                            <div className="mt-1 space-y-2 max-h-[400px] overflow-y-auto">
                               {q.test_cases.map((tc, i) => (
                                 <div key={tc.id || i} className="bg-gray-50 p-3 rounded-lg text-sm">
                                   <div className="flex items-center gap-3 mb-1">
