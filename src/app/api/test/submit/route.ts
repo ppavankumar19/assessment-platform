@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { scoreOutputPrediction } from '@/lib/scoring/normalizeOutput'
 import { computeDerivedMetrics } from '@/lib/metrics/speedMetrics'
+import { submitAndWait } from '@/lib/judge0/client'
 
 export async function POST(request: Request) {
   try {
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
     // Score the submission
     let finalScore = 0
     let finalStatus = 'pending'
+    let testResults: any[] | null = null
 
     if (question.type === 'output_prediction' && predicted_out) {
       const result = scoreOutputPrediction(
@@ -135,17 +137,80 @@ export async function POST(request: Request) {
         .from('submissions')
         .update({ score: finalScore, status: finalStatus })
         .eq('id', submission.id)
-    } else if (question.type === 'coding' && code) {
-      // For coding questions: store the code, set status='pending', score=0
-      // Judge0 execution is handled separately
-      finalStatus = 'pending'
-      finalScore = 0
+
+    } else if (question.type === 'coding' && code && is_final) {
+      // Run code against ALL test cases (visible + hidden)
+      const allTestCases = question.test_cases || []
+      if (allTestCases.length > 0) {
+        testResults = []
+        let totalScore = 0
+
+        for (const tc of allTestCases) {
+          try {
+            const result = await submitAndWait({
+              source_code: code,
+              language_id: language_id,
+              stdin: tc.input,
+              cpu_time_limit: question.time_limit_s,
+              memory_limit: question.memory_limit_mb,
+            }, 20000)
+
+            const passed = result.status.id === 3 &&
+              (result.stdout?.trim() || '') === tc.expected_output.trim()
+
+            const caseScore = passed ? (tc.points || 0) : 0
+            totalScore += caseScore
+
+            testResults.push({
+              case_id: tc.id,
+              passed,
+              score: caseScore,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              time_ms: result.time ? parseFloat(result.time) * 1000 : 0,
+              memory_kb: result.memory || 0,
+              status: result.status.description,
+              is_hidden: tc.is_hidden || false,
+            })
+          } catch {
+            testResults.push({
+              case_id: tc.id,
+              passed: false,
+              score: 0,
+              stdout: null,
+              stderr: 'Execution error',
+              time_ms: 0,
+              memory_kb: 0,
+              status: 'Internal Error',
+              is_hidden: tc.is_hidden || false,
+            })
+          }
+        }
+
+        finalScore = totalScore
+        const allPassed = testResults.every(r => r.passed)
+        const somePassed = testResults.some(r => r.passed)
+        finalStatus = allPassed ? 'accepted' : somePassed ? 'wrong_answer' : 'wrong_answer'
+
+        await serviceClient
+          .from('submissions')
+          .update({
+            score: finalScore,
+            status: finalStatus,
+            test_results: testResults,
+          })
+          .eq('id', submission.id)
+      } else {
+        // No test cases defined — just store the code
+        finalStatus = 'pending'
+      }
     }
 
     return NextResponse.json({
       submission_id: submission.id,
       score: finalScore,
       status: finalStatus,
+      test_results: testResults,
     }, { status: 201 })
   } catch (err: any) {
     return NextResponse.json(
