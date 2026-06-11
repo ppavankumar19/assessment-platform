@@ -446,8 +446,29 @@ export default function TestExamPage() {
       })
 
       if (res.ok) {
+        const result = await res.json()
         setSubmitted((prev) => new Set([...prev, questionId]))
-        toast.success('Answer submitted')
+        // Show test case results for coding questions
+        if (!isOutput && result.test_results) {
+          const passed = result.test_results.filter((r: any) => r.passed).length
+          const total = result.test_results.length
+          const visibleResults = result.test_results
+            .filter((r: any) => !r.is_hidden)
+            .map((r: any) => ({
+              case_id: r.case_id,
+              passed: r.passed,
+              stdout: r.stdout,
+              stderr: r.stderr,
+              time: r.time_ms ? `${(r.time_ms / 1000).toFixed(3)}` : null,
+              memory: r.memory_kb,
+              status: r.status,
+              expected: '',
+            }))
+          setRunResults((prev) => ({ ...prev, [questionId]: visibleResults }))
+          toast.success(`Submitted: ${passed}/${total} test cases passed (Score: ${result.score})`)
+        } else {
+          toast.success('Answer submitted')
+        }
         if (currentIdx < questions.length - 1) {
           setCurrentIdx(currentIdx + 1)
         }
@@ -474,10 +495,11 @@ export default function TestExamPage() {
       const results: any[] = []
 
       for (const tc of visibleCases) {
-        const submitRes = await fetch('/api/execute', {
+        const submitRes = await fetch('/api/test/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            session_token: session.session_token,
             source_code: code[q.id],
             language_id: language[q.id],
             stdin: tc.input,
@@ -497,7 +519,7 @@ export default function TestExamPage() {
         let result = null
         for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 1000))
-          const pollRes = await fetch(`/api/execute/${token}`)
+          const pollRes = await fetch(`/api/test/execute/${token}`)
           if (pollRes.ok) {
             const data = await pollRes.json()
             if (data.status?.id >= 3) {
@@ -802,15 +824,16 @@ export default function TestExamPage() {
             </p>
           )}
 
-          {currentQ.test_cases && currentQ.test_cases.length > 0 && (
+          {currentQ.test_cases && currentQ.test_cases.length > 0 && (() => {
+            const visible = currentQ.test_cases!.filter(tc => !tc.is_hidden)
+            const hiddenCount = currentQ.test_cases!.length - visible.length
+            return (
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-slate-400 mb-2">
-                Test Cases (visible):
+                Test Cases ({visible.length} visible{hiddenCount > 0 ? `, ${hiddenCount} hidden` : ''}):
               </h3>
               <div className="space-y-2">
-                {currentQ.test_cases
-                  .filter((tc) => !tc.is_hidden)
-                  .map((tc) => (
+                {visible.map((tc) => (
                     <div
                       key={tc.id}
                       className="bg-slate-800 rounded-lg p-3 text-sm"
@@ -831,7 +854,8 @@ export default function TestExamPage() {
                   ))}
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* Question nav dots */}
           <div className="flex gap-2 mt-8">
