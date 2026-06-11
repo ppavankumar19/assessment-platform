@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Eye, Play, Pause, Download, Trash2, Activity } from 'lucide-react'
+import { Plus, Eye, Play, Pause, Download, Trash2, Activity, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 import type { Round } from '@/types/database'
@@ -21,10 +21,19 @@ export default function AdminRoundsPage() {
   const [rounds, setRounds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingRound, setEditingRound] = useState<any>(null)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     type: 'output_prediction' as const,
+    duration_minutes: 60,
+    pass_score: 0,
+  })
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    type: 'output_prediction' as string,
     duration_minutes: 60,
     pass_score: 0,
   })
@@ -75,6 +84,42 @@ export default function AdminRoundsPage() {
       fetchRounds()
     } else {
       toast.error('Failed to pause round')
+    }
+  }
+
+  const openEditRound = (round: any) => {
+    setEditingRound(round)
+    setEditFormData({
+      title: round.title,
+      description: round.description || '',
+      type: round.type,
+      duration_minutes: round.duration_minutes,
+      pass_score: round.pass_score,
+    })
+    setEditOpen(true)
+  }
+
+  const handleEditRound = async () => {
+    if (!editingRound) return
+    const res = await fetch(`/api/admin/rounds/${editingRound.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editFormData.title,
+        description: editFormData.description || null,
+        type: editFormData.type,
+        duration_minutes: editFormData.duration_minutes,
+        pass_score: editFormData.pass_score,
+      }),
+    })
+    if (res.ok) {
+      toast.success('Round updated')
+      setEditOpen(false)
+      setEditingRound(null)
+      fetchRounds()
+    } else {
+      const err = await res.json()
+      toast.error(err.error || 'Failed to update round')
     }
   }
 
@@ -220,6 +265,11 @@ export default function AdminRoundsPage() {
                       <Link href={`/admin/rounds/${round.id}`}>
                         <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
                       </Link>
+                      {!round.is_active && (
+                        <Button variant="ghost" size="icon" onClick={() => openEditRound(round)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       {round.is_active ? (
                         <Button variant="ghost" size="icon" onClick={() => handlePause(round.id)}>
                           <Pause className="h-4 w-4" />
@@ -249,6 +299,68 @@ export default function AdminRoundsPage() {
           </Table>
         </Card>
       )}
+
+      {/* Edit Round Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Round</DialogTitle>
+            <DialogDescription>Update round details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Title</Label>
+              <Input
+                value={editFormData.title}
+                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Type</Label>
+                <Select value={editFormData.type} onValueChange={(v) => setEditFormData({ ...editFormData, type: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="output_prediction">Output Prediction</SelectItem>
+                    <SelectItem value="live_coding">Live Coding</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Duration (minutes)</Label>
+                <Input
+                  type="number"
+                  value={editFormData.duration_minutes}
+                  onChange={(e) => setEditFormData({ ...editFormData, duration_minutes: parseInt(e.target.value) || 60 })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Pass Score</Label>
+              <Input
+                type="number"
+                value={editFormData.pass_score}
+                onChange={(e) => setEditFormData({ ...editFormData, pass_score: parseInt(e.target.value) || 0 })}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditRound} disabled={!editFormData.title}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
