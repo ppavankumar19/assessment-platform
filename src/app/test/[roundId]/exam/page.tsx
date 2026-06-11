@@ -206,6 +206,33 @@ export default function TestExamPage() {
     return () => clearInterval(interval)
   }, [session])
 
+  // Poll session status (catches admin disqualification)
+  useEffect(() => {
+    if (!session) return
+
+    const checkStatus = async () => {
+      if (hasCompletedRef.current) return
+      try {
+        const res = await fetch(
+          `/api/test/session/${session.session_id}/status?token=${encodeURIComponent(session.session_token)}`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (data.status === 'disqualified' || data.status === 'completed') {
+            if (!hasCompletedRef.current) {
+              hasCompletedRef.current = true
+              document.exitFullscreen().catch(() => {})
+              router.push(`/test/${roundId}/complete`)
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const interval = setInterval(checkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [session, roundId, router])
+
   // Build speed metrics for a question
   const buildMetrics = useCallback((questionId: string): SpeedMetricsPayload => {
     const m = metricsRef.current[questionId] || {

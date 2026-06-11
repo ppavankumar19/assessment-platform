@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye, Target, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Play, Pause, Download, Send, Activity, Eye, Target, Pencil, ChevronDown, ChevronUp, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Question, TestCase } from '@/types/database'
 
@@ -243,6 +243,28 @@ export default function RoundDetailPage() {
     if (!confirm('Delete this question?')) return
     const res = await fetch(`/api/admin/questions/${qid}`, { method: 'DELETE' })
     if (res.ok) { toast.success('Deleted'); fetchData() }
+  }
+
+  // --- Session management ---
+  const handleDisqualifySession = async (sessionId: string) => {
+    if (!confirm('Disqualify this candidate? Their exam will be terminated immediately.')) return
+    const res = await fetch(`/api/admin/sessions/${sessionId}/disqualify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Admin disqualification' }),
+    })
+    if (res.ok) { toast.success('Candidate disqualified'); fetchData() }
+    else toast.error('Failed to disqualify')
+  }
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Delete this candidate\'s session? This will permanently remove their submission data. This cannot be undone.')) return
+    const res = await fetch(`/api/admin/sessions/${sessionId}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Session deleted'); fetchData() }
+    else {
+      const err = await res.json()
+      toast.error(err.error || 'Failed to delete session')
+    }
   }
 
   // --- Test case helpers ---
@@ -736,9 +758,19 @@ export default function RoundDetailPage() {
                       <TableCell className="text-center">{s.questions_answered}</TableCell>
                       <TableCell className="text-center font-semibold">{s.total_score}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/results/${roundId}?session=${s.id}`}>
-                          <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
-                        </Link>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/admin/results/${roundId}?session=${s.id}`}>
+                            <Button variant="ghost" size="icon" title="View results"><Eye className="h-4 w-4" /></Button>
+                          </Link>
+                          {s.status === 'started' && (
+                            <Button variant="ghost" size="icon" title="Disqualify" onClick={() => handleDisqualifySession(s.id)}>
+                              <Ban className="h-4 w-4 text-amber-600" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" title="Delete session" onClick={() => handleDeleteSession(s.id)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
