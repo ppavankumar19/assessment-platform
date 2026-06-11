@@ -6,9 +6,8 @@ export async function GET() {
     const serviceClient = await createServiceRoleClient()
     const { data: rounds, error } = await serviceClient
       .from('rounds')
-      .select('id, title, description, type, duration_minutes')
+      .select('id, title, description, type, duration_minutes, is_active')
       .eq('is_published', true)
-      .eq('is_active', true)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

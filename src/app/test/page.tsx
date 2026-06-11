@@ -31,6 +31,7 @@ interface Round {
   description: string | null
   type: string
   duration_minutes: number
+  is_active: boolean
 }
 
 const BRANCHES = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML', 'Other'] as const
@@ -196,11 +197,15 @@ export default function TestLandingPage() {
                     <span>{round.duration_minutes} minutes</span>
                   </div>
                   <Button
-                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
                     onClick={() => handleStartClick(round)}
+                    disabled={!round.is_active}
                   >
-                    Start Assessment
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    {round.is_active ? (
+                      <>Start Assessment <ArrowRight className="h-4 w-4 ml-2" /></>
+                    ) : (
+                      'Currently Paused'
+                    )}
                   </Button>
                 </CardContent>
               </Card>
