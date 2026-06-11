@@ -34,7 +34,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const serviceClient = await createServiceRoleClient()
 
   const { data: round } = await serviceClient.from('rounds').select('is_active').eq('id', params.id).single()
-  if (round?.is_active) {
+
+  // Allow cutoff_score updates even on active rounds
+  const isCutoffOnly = Object.keys(body).length === 1 && 'cutoff_score' in body
+  if (round?.is_active && !isCutoffOnly) {
     return NextResponse.json({ error: 'Cannot edit active round' }, { status: 409 })
   }
 

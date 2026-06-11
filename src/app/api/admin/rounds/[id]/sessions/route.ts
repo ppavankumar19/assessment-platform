@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     .from('candidate_sessions')
     .select(`
       *,
-      users!inner(email, full_name),
+      users(email, full_name),
       submissions(id, is_final, score)
     `)
     .eq('round_id', params.id)
@@ -26,8 +26,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const enriched = sessions?.map((s: any) => ({
     id: s.id,
-    user_email: s.users.email,
-    user_name: s.users.full_name,
+    user_email: s.users?.email || s.candidate_email || '',
+    user_name: s.users?.full_name || s.candidate_name || null,
+    candidate_email: s.candidate_email || s.users?.email || '',
+    college_name: s.college_name || null,
+    roll_no: s.roll_no || null,
+    branch: s.branch || null,
     status: s.status,
     started_at: s.started_at,
     expires_at: s.started_at ? new Date(new Date(s.started_at).getTime() + (round?.duration_minutes || 60) * 60000).toISOString() : null,
