@@ -14,7 +14,7 @@ export default async function Home() {
       .single()
 
     if (profile?.role === 'admin') redirect('/admin')
-    redirect('/assess')
+    redirect('/test')
   }
 
   redirect('/login')
