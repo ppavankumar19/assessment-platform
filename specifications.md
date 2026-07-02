@@ -177,9 +177,9 @@
 | NF-01 | Performance | API p95 response time < 200 ms |
 | NF-02 | Performance | Python execution (p95) < 5 s via Pyodide |
 | NF-03 | Performance | Static frontend LCP < 1.5 s |
-| NF-04 | Scalability | 200+ concurrent sessions on a single $10 VPS |
+| NF-04 | Scalability | Auto-scales on Vercel serverless; Supabase pool is primary constraint |
 | NF-05 | Availability | ≥ 99.5% uptime during assessment windows |
-| NF-06 | Security | TLS 1.3 enforced at Nginx/CDN layer |
+| NF-06 | Security | TLS enforced by Vercel CDN / edge network |
 | NF-07 | Security | Service role key never sent to browser |
 | NF-08 | Security | All user-supplied content HTML-escaped before DOM insertion |
 | NF-09 | Security | Rate limit: 200 requests/min/IP (Fastify rate-limit) |
@@ -190,6 +190,8 @@
 ---
 
 ## 3. Data Schema
+
+> Migration: `supabase/migrations/00003_reset_correct_schema.sql` — run in Supabase Dashboard → SQL Editor.
 
 ### SQL Definitions
 
@@ -311,8 +313,8 @@ CREATE TABLE audit_logs (
 
 ### Base URL
 ```
-http://localhost:4000   (development)
-https://yourdomain.com  (production)
+http://localhost:4000                              (local development)
+https://assessment-platform-drab.vercel.app       (production)
 ```
 
 ### Common Response Codes
@@ -531,21 +533,25 @@ See implementation.md §5.4 for full request/response example.
 
 ### 5.1 Design System (`frontend/css/app.css`)
 
-**Color Palette (CSS custom properties):**
+**Color Palette (CSS custom properties — light theme):**
 ```css
---bg-950: #020617   /* deepest background */
---bg-900: #0f172a   /* page background */
---bg-800: #1e293b   /* cards, sidebar */
---bg-700: #334155   /* inputs, hover states */
---text-50: #f8fafc  /* headings */
---text-300: #cbd5e1 /* body text */
---text-400: #94a3b8 /* secondary text, labels */
---text-500: #64748b /* muted / placeholder */
---indigo-600: #4f46e5  /* primary action */
---green-600: #16a34a   /* success / submit */
---red-600: #dc2626     /* danger / error */
---amber-500: #f59e0b   /* warning */
---border: #334155
+--bg-950: #f8fafc   /* lightest page wash */
+--bg-900: #f1f5f9   /* page background */
+--bg-850: #eef2f7   /* subtle section tint */
+--bg-800: #ffffff   /* cards, modals (white) */
+--bg-700: #e2e8f0   /* inputs, dividers */
+--text-50:  #0f172a /* headings */
+--text-100: #1e293b /* primary body text */
+--text-300: #475569 /* secondary text */
+--text-400: #64748b /* labels */
+--text-500: #94a3b8 /* muted / placeholder */
+--indigo-400: #3b82f6  /* accent / links */
+--indigo-500: #2563eb  /* primary action */
+--indigo-600: #1d4ed8  /* primary hover */
+--green-400: #4ade80   /* success */
+--red-400:   #f87171   /* danger */
+--amber-400: #fbbf24   /* warning */
+--border: #e2e8f0
 ```
 
 **Typography:**
@@ -580,7 +586,7 @@ On mobile (< 768px): sidebar overlays, toggled by ☰ button.
 │  Left Panel (40%)     │  Right Panel (60%)          │
 │  Question title       │  Editor toolbar             │
 │  Description          │  Monaco Editor              │
-│  Visible test cases   │  (Python, vs-dark, no mini) │
+│  Visible test cases   │  (Python, vs light, no mini) │
 │  Navigation dots      │  Output panel (11rem)       │
 ├───────────────────────┴─────────────────────────────┤
 │  Bottom Nav: Previous | Next | Finish Assessment    │
