@@ -43,7 +43,7 @@ A full-stack recruitment assessment platform for technical hiring. Built with **
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
 | Code Editor | Monaco Editor (CDN) |
 | Code Execution | Pyodide (browser WebAssembly — Python 3) |
-| Deployment | Any VPS, Docker, or Nginx + Node.js process |
+| Deployment | Vercel (serverless API + static frontend via CDN) |
 
 ## Project Structure
 
@@ -88,8 +88,6 @@ assessment-platform/
 │       ├── entry.html          # Rules + registration form
 │       ├── exam.html           # Exam (Monaco editor + Pyodide + anti-cheat)
 │       └── complete.html       # Completion / disqualification page
-│
-└── src/                        # Legacy Next.js app (not deleted, not used)
 ```
 
 ## Setup
@@ -124,28 +122,46 @@ const SUPABASE_URL  = '__SUPABASE_URL__'      // ← replace
 const SUPABASE_ANON = '__SUPABASE_ANON_KEY__' // ← replace
 ```
 
-In Supabase Dashboard → Authentication → URL Configuration, add:
-```
-http://localhost:4000/login.html
-```
-as a redirect URL.
+In Supabase Dashboard → Authentication → URL Configuration, set:
+- **Site URL**: `https://assessment-platform-drab.vercel.app`
+- **Redirect URLs**: `https://assessment-platform-drab.vercel.app/**`
 
-### 4. Run database migrations
-Run the SQL migration files in Supabase Dashboard → SQL Editor:
-- `supabase/migrations/00001_initial_schema.sql`
-- `supabase/migrations/00002_add_session_fields.sql`
+For local development also add `http://localhost:4000/login.html` as a redirect URL.
 
-### 5. Start the server
+### 4. Run database migration
+Run in Supabase Dashboard → SQL Editor:
+- `supabase/migrations/00003_reset_correct_schema.sql`
+
+This drops and recreates all tables with the correct schema. At the end of the file, uncomment and run:
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'you@gmail.com';
+```
+
+### 5. Deploy to Vercel
+
+```bash
+npm install -g vercel
+vercel --prod
+```
+
+Set the following environment variables in the Vercel dashboard (Project → Settings → Environment Variables):
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+### 6. Local development
 ```bash
 cd backend
-npm run dev        # development (auto-restarts on changes)
-npm start          # production
+npm run dev        # starts Fastify on http://localhost:4000
 ```
 
-Open `http://localhost:4000` — the server serves both the API and the static frontend.
-
-### 6. Bootstrap the first admin
-Sign in via Google at `http://localhost:4000/login.html`. Then in Supabase Dashboard → Table Editor → `users`, set `role = 'admin'` for your user row.
+### 7. Bootstrap the first admin
+Sign in via Google at `/login.html`. Then run in Supabase SQL Editor:
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'you@gmail.com';
+```
 
 ## API Routes
 
@@ -184,45 +200,20 @@ Sign in via Google at `http://localhost:4000/login.html`. Then in Supabase Dashb
 
 ## Deployment
 
-### Single VPS (recommended for small-medium scale)
+Deployed on **Vercel**:
+- **Production URL**: `https://assessment-platform-drab.vercel.app`
+- Static frontend served from `frontend/` via Vercel CDN (`outputDirectory: "frontend"` in `vercel.json`)
+- API (`backend/`) runs as a Vercel serverless function via `api/index.js`
+
 ```bash
-# On your server
+vercel --prod   # deploy to production
+```
+
+### Local development (Fastify)
+```bash
 cd backend
-npm install --production
-node server.js   # or use pm2 / systemd
-
-# Optional: put Nginx in front to serve frontend static files
-# and proxy /api/* to localhost:4000
-```
-
-### Docker
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY backend/ ./backend/
-COPY frontend/ ./frontend/
-WORKDIR /app/backend
-RUN npm install --production
-EXPOSE 4000
-CMD ["node", "server.js"]
-```
-
-### Nginx (production — serve static frontend from Nginx, proxy API)
-```nginx
-server {
-    listen 80;
-    root /var/www/assessment-platform/frontend;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://localhost:4000;
-        proxy_set_header Host $host;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
+npm install
+npm run dev    # http://localhost:4000
 ```
 
 ## License
