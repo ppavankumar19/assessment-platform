@@ -27,12 +27,14 @@
 | **Auth Service** | Supabase Auth | Google OAuth + Magic Link; JWT issuance |
 | **Database** | Supabase PostgreSQL 15 | All application state; Row Level Security |
 | **Code Executor** | Pyodide (browser WASM) | Python 3 execution in the browser; Web Worker |
-| **Deployment** | Any VPS / Docker / Nginx | No platform dependency |
+| **Deployment** | Vercel (serverless + CDN) | `api/index.js` wraps Fastify; `frontend/` served as static |
 
 ### 1.2 Directory Structure
 
 ```
 assessment-platform/
+├── api/
+│   └── index.js                  # Vercel serverless entry point (wraps Fastify)
 ├── backend/
 │   ├── server.js                 # Fastify app — registers all plugins and routes
 │   ├── lib/
@@ -56,7 +58,7 @@ assessment-platform/
 │   └── .env.example
 │
 └── frontend/
-    ├── css/app.css               # Full design system (CSS custom properties, dark theme)
+    ├── css/app.css               # Full design system (CSS custom properties, light theme)
     ├── js/
     │   ├── api.js                # Centralized fetch wrapper + all endpoint methods
     │   ├── utils.js              # Toast, modal, confirm, formatTime, badges, DOM helpers
