@@ -8,7 +8,6 @@
 </head>
 <body>
 <div class="admin-layout">
-  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <span class="logo-icon">&#9670;</span> Assessment
@@ -22,21 +21,20 @@
         <div class="avatar" id="user-avatar">A</div>
         <div class="sidebar-user-info">
           <div class="sidebar-user-name" id="user-name">Admin</div>
-          <div class="sidebar-user-role">Admin</div>
+          <div class="sidebar-user-role">Administrator</div>
         </div>
       </div>
-      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">Sign out</button>
+      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">&#8594; Sign out</button>
     </div>
   </aside>
 
-  <!-- Main content -->
   <main class="admin-content">
     <div class="content-header">
       <div class="flex items-center gap-3">
         <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
         <div>
           <h2>Dashboard</h2>
-          <p class="text-sm text-muted mt-1">Manage assessment rounds</p>
+          <p class="text-xs text-muted mt-1" style="margin-top:.125rem">Manage assessment rounds and candidates</p>
         </div>
       </div>
       <button class="btn btn-primary" id="btn-new-round">+ New Round</button>
@@ -45,17 +43,32 @@
     <div class="content-body">
       <!-- Stats -->
       <div class="grid-5 mb-6" id="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Rounds</div><div class="stat-value" id="stat-rounds">—</div></div>
-        <div class="stat-card"><div class="stat-label">Published</div><div class="stat-value green" id="stat-published">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Sessions</div><div class="stat-value indigo" id="stat-sessions">—</div></div>
-        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value green" id="stat-completed">—</div></div>
-        <div class="stat-card"><div class="stat-label">Disqualified</div><div class="stat-value red" id="stat-disq">—</div></div>
+        <div class="stat-card">
+          <div class="stat-label">Total Rounds</div>
+          <div class="stat-value" id="stat-rounds">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Published</div>
+          <div class="stat-value green" id="stat-published">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Sessions</div>
+          <div class="stat-value indigo" id="stat-sessions">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completed</div>
+          <div class="stat-value green" id="stat-completed">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Disqualified</div>
+          <div class="stat-value red" id="stat-disq">—</div>
+        </div>
       </div>
 
       <!-- Rounds list -->
       <div class="section">
         <div class="section-header">
-          <h3>Rounds</h3>
+          <h3>Assessment Rounds</h3>
         </div>
         <div id="rounds-list">
           <div class="empty-state"><div class="spinner"></div></div>
@@ -79,7 +92,7 @@
       </div>
       <div class="form-group">
         <label>Description</label>
-        <textarea class="textarea" name="description" placeholder="Brief description..."></textarea>
+        <textarea class="textarea" name="description" placeholder="Brief description of this assessment..."></textarea>
       </div>
       <div class="form-group">
         <label>Type *</label>
@@ -89,13 +102,15 @@
           <option value="mcq">MCQ</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Duration (minutes) *</label>
-        <input type="number" class="input" name="duration_minutes" value="60" min="5" max="300" required>
-      </div>
-      <div class="form-group">
-        <label>Cutoff Score (optional)</label>
-        <input type="number" class="input" name="cutoff_score" placeholder="e.g. 70">
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Duration (minutes) *</label>
+          <input type="number" class="input" name="duration_minutes" value="60" min="5" max="300" required>
+        </div>
+        <div class="form-group">
+          <label>Cutoff Score</label>
+          <input type="number" class="input" name="cutoff_score" placeholder="e.g. 70">
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-close="modal-new-round">Cancel</button>
@@ -123,23 +138,19 @@
 import api from '/js/api.js'
 import { toastSuccess, toastError, openModal, closeModal, confirm, formatDate, roundStatusBadge, roundTypeBadge, timeAgo } from '/js/utils.js'
 
-// Auth guard
 const token = localStorage.getItem('admin_token')
 if (!token) { window.location.replace('/login.html'); throw 0 }
 
 let user = null
 
-// Close buttons
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.close))
 })
 
-// Sidebar toggle (mobile)
 document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open')
 })
 
-// Load user
 async function loadUser() {
   try {
     user = await api.getUser()
@@ -155,19 +166,16 @@ async function loadUser() {
   }
 }
 
-// Logout
 document.getElementById('btn-logout').addEventListener('click', async () => {
   localStorage.removeItem('admin_token')
   window.location.replace('/login.html')
 })
 
-// Load rounds and stats
 async function loadRounds() {
   try {
     const rounds = await api.getRounds()
 
-    // Stats
-    document.getElementById('stat-rounds').textContent = rounds.length
+    document.getElementById('stat-rounds').textContent    = rounds.length
     document.getElementById('stat-published').textContent = rounds.filter(r => r.is_published).length
 
     const allSessions = rounds.reduce((n, r) => n + (r.candidate_sessions?.[0]?.count || 0), 0)
@@ -179,40 +187,37 @@ async function loadRounds() {
   }
 }
 
-async function loadSessionStats() {
-  // Fetch counts for completed/disqualified
-  try {
-    const res = await fetch('/api/admin/rounds', { headers: { Authorization: `Bearer ${token}` } })
-    // Already loaded above, skip separate call
-  } catch {}
-}
-
 function renderRounds(rounds) {
   const container = document.getElementById('rounds-list')
   if (rounds.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><p>No rounds yet. Create your first assessment round.</p></div>`
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">&#128221;</div>
+        <p style="font-size:.9375rem;font-weight:500;color:var(--text-300);margin-bottom:.25rem">No rounds yet</p>
+        <p>Create your first assessment round to get started.</p>
+      </div>`
     return
   }
 
   container.innerHTML = rounds.map(r => {
     const sessionCount = r.candidate_sessions?.[0]?.count || 0
     return `
-    <div class="card mb-3" style="cursor:default">
+    <div class="card mb-3" style="transition:border-color .15s" onmouseover="this.style.borderColor='var(--border-light)'" onmouseout="this.style.borderColor='var(--border)'">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3 flex-wrap">
-          <a href="/admin/round.html?id=${r.id}" class="font-semibold" style="font-size:1.0625rem;color:var(--text-50);text-decoration:none;">${escHtml(r.title)}</a>
+          <a href="/admin/round.html?id=${r.id}" style="font-size:1.0625rem;font-weight:600;color:var(--text-50);text-decoration:none;" onmouseover="this.style.color='var(--indigo-400)'" onmouseout="this.style.color='var(--text-50)'">${escHtml(r.title)}</a>
           ${roundStatusBadge(r)}
           ${roundTypeBadge(r.round_type)}
         </div>
         <div class="flex items-center gap-2">
           <span class="text-sm text-muted">${sessionCount} session${sessionCount !== 1 ? 's' : ''}</span>
-          <span class="text-sm text-muted">&#183;</span>
+          <span style="color:var(--text-500)">&middot;</span>
           <span class="text-sm text-muted">${r.duration_minutes} min</span>
           <a href="/admin/round.html?id=${r.id}" class="btn btn-outline btn-sm">Manage</a>
-          <button class="btn btn-ghost btn-sm" onclick="deleteRound('${r.id}', '${escHtml(r.title)}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="deleteRound('${r.id}', '${escHtml(r.title)}')">Delete</button>
         </div>
       </div>
-      ${r.description ? `<p class="text-sm text-muted mt-2">${escHtml(r.description)}</p>` : ''}
+      ${r.description ? `<p class="text-sm text-muted mt-2" style="line-height:1.5">${escHtml(r.description)}</p>` : ''}
       <p class="text-xs text-muted mt-2">Created ${timeAgo(r.created_at)}</p>
     </div>`
   }).join('')
@@ -222,7 +227,6 @@ function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-// Create round
 document.getElementById('btn-new-round').addEventListener('click', () => openModal('modal-new-round'))
 
 document.getElementById('form-new-round').addEventListener('submit', async e => {
@@ -252,7 +256,6 @@ document.getElementById('form-new-round').addEventListener('submit', async e => 
   }
 })
 
-// Delete round
 window.deleteRound = (id, title) => {
   confirm(`Delete round "${title}"? All questions and sessions will be permanently removed.`, async () => {
     try {
