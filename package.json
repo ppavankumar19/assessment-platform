@@ -1,0 +1,14 @@
+{
+  "name": "assessment-platform",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/rate-limit": "^9.0.0",
+    "@fastify/static": "^7.0.0",
+    "@supabase/supabase-js": "^2.108.0",
+    "csv-stringify": "^6.5.2",
+    "fastify": "^4.28.0",
+    "uuid": "^9.0.0"
+  }
+}
