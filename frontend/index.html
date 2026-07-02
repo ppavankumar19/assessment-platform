@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assessment Platform</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="loading-screen">
+    <div class="spinner"></div>
+    <p class="text-muted">Loading...</p>
+  </div>
+
+  <script type="module">
+    // Root redirect: admins → /admin/, candidates → /test/
+    const token = localStorage.getItem('admin_token')
+    if (token) {
+      try {
+        const res = await fetch('/api/auth/user', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          window.location.replace('/admin/')
+          return
+        }
+      } catch {}
+      localStorage.removeItem('admin_token')
+    }
+    window.location.replace('/test/')
+  </script>
+</body>
+</html>

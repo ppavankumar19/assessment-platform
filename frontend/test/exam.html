@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exam — Assessment Platform</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+</head>
+<body oncontextmenu="return false">
+<div class="exam-layout">
+  <!-- Top bar -->
+  <div class="exam-topbar">
+    <div class="exam-topbar-inner">
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-semibold" id="q-progress">Q 1 / 1</span>
+        <span id="python-status" class="flex items-center gap-1 text-xs" style="color:var(--amber-400)">
+          <span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span> Loading Python...
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="badge badge-gray" id="q-points">—</span>
+        <span class="timer-text timer-normal-text" id="timer-display">—</span>
+      </div>
+    </div>
+    <!-- Timer bar -->
+    <div class="timer-bar-wrap"><div class="timer-bar timer-normal" id="timer-bar" style="width:100%"></div></div>
+    <!-- Question progress bar -->
+    <div class="progress-bar-wrap"><div class="progress-bar" id="q-progress-bar" style="width:0%"></div></div>
+  </div>
+
+  <!-- Main split -->
+  <div class="exam-main">
+    <!-- Left: problem statement -->
+    <div class="exam-panel-left">
+      <h2 class="mb-2" id="q-title">Loading...</h2>
+      <p class="text-sm mb-4" id="q-desc" style="white-space:pre-wrap"></p>
+
+      <!-- Test cases (visible only) -->
+      <div id="tc-container"></div>
+
+      <!-- Question nav dots -->
+      <div class="q-dots" id="q-dots"></div>
+    </div>
+
+    <!-- Right: editor + output -->
+    <div class="exam-panel-right">
+      <!-- Editor toolbar -->
+      <div class="editor-toolbar">
+        <span class="text-xs text-muted font-mono">Python 3</span>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-outline btn-sm" id="btn-run" disabled>&#9654; Run</button>
+          <button class="btn btn-success btn-sm" id="btn-submit" disabled>&#128228; Submit</button>
+        </div>
+      </div>
+
+      <!-- Monaco Editor -->
+      <div class="editor-area" id="editor-container"></div>
+
+      <!-- Output panel -->
+      <div class="output-panel">
+        <div class="text-xs text-muted font-semibold mb-2">Output</div>
+        <div id="output-content">
+          <p class="text-sm" style="color:var(--text-500)">Click Run to test your code against visible test cases.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="exam-bottombar">
+    <button class="btn btn-ghost btn-sm" id="btn-prev">&#8592; Previous</button>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-ghost btn-sm" id="btn-next">Next &#8594;</button>
+      <button class="btn btn-success btn-sm hidden" id="btn-finish">Finish Assessment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Submit confirm dialog -->
+<div class="modal-backdrop" id="modal-submit">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><span class="modal-title">Submit Solution?</span></div>
+    <p class="text-sm mb-4" style="color:var(--text-300)">
+      Your code will be tested against <strong>all test cases including hidden ones</strong>. This cannot be undone.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-submit-cancel">Cancel</button>
+      <button class="btn btn-success" id="modal-submit-ok">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Finish confirm dialog -->
+<div class="modal-backdrop" id="modal-finish">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><span class="modal-title">Finish Assessment?</span></div>
+    <p class="text-sm mb-4" style="color:var(--text-300)">
+      Are you sure you want to finish? All unsubmitted questions will be saved without test results.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-finish-cancel">Cancel</button>
+      <button class="btn btn-success" id="modal-finish-ok">Finish</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import api from '/js/api.js'
+import { toastSuccess, toastError, toastWarning, formatTime, loadTestSession } from '/js/utils.js'
+
+// ---- Session ----
+const params  = new URLSearchParams(location.search)
+const roundId = params.get('round')
+const session = loadTestSession(roundId)
+
+if (!session?.session_id || !session?.expires_at) {
+  window.location.replace('/test/')
+  throw 0
+}
+
+// ---- State ----
+let questions      = []
+let currentIdx     = 0
+let code           = {}          // questionId -> code string
+let submitted      = new Set()   // questionId -> submitted
+let runResults     = {}          // questionId -> results[]
+let editor         = null
+let pythonReady    = false
+let running        = false
+let submitting     = false
+let hasCompleted   = false
+let isSubmitting   = false
+
+// ---- Metrics & Replay ----
+const metrics = {}    // questionId -> metrics obj
+const replays = {}    // questionId -> replay obj
+
+function initMetrics(qid) {
+  if (!metrics[qid]) metrics[qid] = { keystrokes:0, deletes:0, pastes:0, firstKey:null, startTime:Date.now(), idlePeriods:[], idleStart:null, lastActivity:Date.now() }
+}
+function buildMetricsPayload(qid) {
+  const m = metrics[qid] || { keystrokes:0, deletes:0, pastes:0, firstKey:null, startTime:Date.now(), idlePeriods:[], idleStart:null }
+  const idle = m.idlePeriods.reduce((s,p) => s + (p.end_ms - p.start_ms), 0)
+  const active = Math.max(0, Date.now() - m.startTime - idle)
+  return {
+    total_keystrokes:    m.keystrokes,
+    paste_count:         m.pastes,
+    delete_count:        m.deletes,
+    time_to_first_key_ms: m.firstKey ? m.firstKey - m.startTime : null,
+    total_active_time_ms: active,
+    idle_periods:        m.idlePeriods,
+  }
+}
+
+// ---- Pyodide Worker ----
+const worker = new Worker('/js/pyodide-worker.js')
+const pendingCallbacks = new Map()
+
+worker.onmessage = e => {
+  const d = e.data
+  if (d.type === 'ready') {
+    pythonReady = true
+    document.getElementById('python-status').innerHTML = '<span style="color:var(--green-400)">&#9654; Python 3 Ready</span>'
+    updateButtons()
+  } else if (d.type === 'error') {
+    document.getElementById('python-status').innerHTML = '<span style="color:var(--red-400)">Python failed to load</span>'
+  } else if (d.type === 'result') {
+    const cb = pendingCallbacks.get(d.id)
+    if (cb) { cb(d.results); pendingCallbacks.delete(d.id) }
+  }
+}
+worker.onerror = () => {
+  document.getElementById('python-status').innerHTML = '<span style="color:var(--red-400)">Python error</span>'
+}
+
+function runPython(codeStr, testCases) {
+  return new Promise((resolve, reject) => {
+    const id = `${Date.now()}-${Math.random()}`
+    const timeout = setTimeout(() => {
+      pendingCallbacks.delete(id)
+      resolve(testCases.map(tc => ({ case_id: tc.id, passed:false, stdout:'', stderr:'Time limit exceeded', status:'TLE', time_ms:10000, score:0, is_hidden:tc.is_hidden||false, expected_output:tc.expected_output||'' })))
+    }, 15000)
+    pendingCallbacks.set(id, results => { clearTimeout(timeout); resolve(results) })
+    worker.postMessage({ id, code: codeStr, testCases })
+  })
+}
+
+// ---- Monaco Init ----
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
+require(['vs/editor/editor.main'], () => {
+  editor = monaco.editor.create(document.getElementById('editor-container'), {
+    value: '',
+    language: 'python',
+    theme: 'vs-dark',
+    fontSize: 14,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    wordWrap: 'on',
+    lineNumbers: 'on',
+    padding: { top: 12 },
+    contextmenu: false,
+  })
+
+  editor.onDidChangeModelContent(() => {
+    const q = questions[currentIdx]
+    if (!q) return
+    const val = editor.getValue()
+    initMetrics(q.id)
+    const m = metrics[q.id]
+    if (!m.firstKey) m.firstKey = Date.now()
+    m.keystrokes++
+    code[q.id] = val
+  })
+
+  // Paste detection
+  editor.onDidPaste(() => {
+    const q = questions[currentIdx]
+    if (!q) return
+    initMetrics(q.id)
+    metrics[q.id].pastes++
+    const replay = replays[q.id]
+    if (replay) {
+      navigator.clipboard?.readText?.().then(text => {
+        replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'paste', pastedContent:text })
+      }).catch(() => {
+        replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'paste' })
+      })
+    }
+  })
+
+  loadQuestions()
+})
+
+// ---- Load questions ----
+async function loadQuestions() {
+  try {
+    questions = await api.getQuestions(roundId, session.session_token)
+    if (!questions.length) { toastError('No questions available'); return }
+
+    const now = Date.now()
+    questions.forEach(q => {
+      code[q.id] = q.starter_code || ''
+      replays[q.id] = { startTime: now, snapshots: [{ t:0, code: code[q.id], trigger:'initial' }], runEvents: [] }
+    })
+
+    renderQuestion(0)
+    renderDots()
+    startTimer()
+    startStatusPoller()
+    startPeriodicSnapshots()
+  } catch (e) {
+    toastError('Failed to load questions: ' + e.message)
+  }
+}
+
+// ---- Render question ----
+function renderQuestion(idx) {
+  currentIdx = idx
+  const q = questions[idx]
+  if (!q) return
+
+  document.getElementById('q-title').textContent = q.title
+  document.getElementById('q-desc').textContent   = q.description || ''
+  document.getElementById('q-points').textContent = `${q.points} pts`
+  document.getElementById('q-progress').textContent = `Q ${idx+1} / ${questions.length}`
+  document.getElementById('q-progress-bar').style.width = `${((idx+1)/questions.length)*100}%`
+
+  // Test cases (visible)
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  const hidden  = (q.test_cases?.length || 0) - visible.length
+  const tcContainer = document.getElementById('tc-container')
+  if (visible.length > 0) {
+    tcContainer.innerHTML = `
+      <h4 class="text-sm mb-2">Sample Test Cases (${visible.length} visible${hidden > 0 ? `, ${hidden} hidden` : ''})</h4>
+      <div style="display:flex;flex-direction:column;gap:.5rem">
+        ${visible.map((tc,i) => `
+          <div class="test-case-card">
+            <div class="io-label">Case ${i+1}</div>
+            <div class="test-case-io mt-1">
+              <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
+              <div><div class="io-label">Expected</div><div class="io-value">${escHtml(tc.expected_output)}</div></div>
+            </div>
+          </div>`).join('')}
+      </div>`
+  } else {
+    tcContainer.innerHTML = ''
+  }
+
+  // Editor
+  if (editor) {
+    editor.setValue(code[q.id] || '')
+    editor.updateOptions({ readOnly: submitted.has(q.id) })
+  }
+
+  // Output
+  renderOutput(q.id)
+  updateButtons()
+  updateDots()
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+function renderOutput(qid) {
+  const results = runResults[qid] || []
+  const el = document.getElementById('output-content')
+  if (!results.length) {
+    el.innerHTML = `<p class="text-sm" style="color:var(--text-500)">${!pythonReady ? 'Loading Python runtime...' : 'Click Run to test your code.'}</p>`
+    return
+  }
+  el.innerHTML = results.map((r,i) => `
+    <div class="result-item">
+      <div class="${r.passed ? 'result-pass' : 'result-fail'}">
+        ${r.passed ? '&#10004;' : '&#10008;'} Case ${i+1}: ${r.status} (${r.time_ms}ms)
+      </div>
+      ${!r.passed ? `
+        <div class="result-detail">
+          ${r.stdout ? `<pre class="got">Got: ${escHtml(r.stdout.trim())}</pre>` : ''}
+          ${r.stderr ? `<pre class="err">${escHtml(r.stderr.trim())}</pre>` : ''}
+          <pre class="exp">Expected: ${escHtml(r.expected_output)}</pre>
+        </div>` : ''}
+    </div>`).join('')
+}
+
+function updateButtons() {
+  const q = questions[currentIdx]
+  const isSubmitted = q && submitted.has(q.id)
+  const hasCode     = q && (code[q.id] || '').trim().length > 0
+
+  document.getElementById('btn-run').disabled    = !pythonReady || !hasCode || isSubmitted || running
+  document.getElementById('btn-submit').disabled = !pythonReady || !hasCode || isSubmitted || submitting || running
+  document.getElementById('btn-run').textContent    = running    ? '&#9679; Running...' : '&#9654; Run'
+  document.getElementById('btn-submit').textContent = submitting ? 'Submitting...'      : '&#128228; Submit'
+  document.getElementById('btn-prev').disabled = currentIdx === 0
+  document.getElementById('btn-next').classList.toggle('hidden', currentIdx >= questions.length - 1)
+  document.getElementById('btn-finish').classList.toggle('hidden', !questions.every(q => submitted.has(q.id)))
+}
+
+function renderDots() {
+  const el = document.getElementById('q-dots')
+  el.innerHTML = questions.map((q,i) => `
+    <button class="q-dot ${i===currentIdx?'active':''} ${submitted.has(q.id)?'submitted':''}" data-idx="${i}">${i+1}</button>`).join('')
+  el.querySelectorAll('.q-dot').forEach(btn => {
+    btn.addEventListener('click', () => renderQuestion(Number(btn.dataset.idx)))
+  })
+}
+function updateDots() {
+  document.querySelectorAll('.q-dot').forEach((btn,i) => {
+    btn.className = `q-dot ${i===currentIdx?'active':''} ${submitted.has(questions[i]?.id)?'submitted':''}`
+  })
+}
+
+// ---- Timer ----
+function startTimer() {
+  const expiry = new Date(session.expires_at).getTime()
+  const total  = expiry - Date.now()
+
+  function tick() {
+    const remaining = expiry - Date.now()
+    if (remaining <= 0) {
+      setTimer(0, total)
+      autoSubmit('timer_expired')
+      return
+    }
+    setTimer(remaining, total)
+    requestAnimationFrame(() => setTimeout(tick, 1000))
+  }
+  tick()
+}
+
+function setTimer(remaining, total) {
+  const pct = total > 0 ? (remaining / total) * 100 : 0
+  const isCritical = remaining <= 60000
+  const isWarning  = remaining <= 5 * 60000
+
+  document.getElementById('timer-display').textContent = formatTime(remaining)
+  document.getElementById('timer-display').className =
+    `timer-text ${isCritical ? 'timer-critical-text' : isWarning ? 'timer-warning-text' : 'timer-normal-text'}`
+
+  const bar = document.getElementById('timer-bar')
+  bar.style.width = `${pct}%`
+  bar.className = `timer-bar ${isCritical ? 'timer-critical' : isWarning ? 'timer-warning' : 'timer-normal'}`
+}
+
+// ---- Status polling ----
+function startStatusPoller() {
+  const iv = setInterval(async () => {
+    if (hasCompleted) { clearInterval(iv); return }
+    try {
+      const data = await api.getSessionStatus(session.session_id, session.session_token)
+      if (data.status === 'disqualified' || data.status === 'completed') {
+        clearInterval(iv)
+        if (!hasCompleted) {
+          hasCompleted = true
+          document.exitFullscreen().catch(() => {})
+          window.location.replace(`/test/complete.html?round=${roundId}`)
+        }
+      }
+    } catch {}
+  }, 10000)
+}
+
+// ---- Periodic snapshots ----
+function startPeriodicSnapshots() {
+  setInterval(() => {
+    questions.forEach(q => {
+      const replay = replays[q.id]
+      if (!replay) return
+      const curr = code[q.id] || ''
+      const last = replay.snapshots[replay.snapshots.length - 1]
+      if (!last || last.code !== curr) {
+        replay.snapshots.push({ t: Date.now()-replay.startTime, code: curr, trigger:'periodic' })
+      }
+    })
+  }, 10000)
+}
+
+// ---- Anti-cheat ----
+document.addEventListener('visibilitychange', () => { if (document.hidden) autoSubmit('tab_switch') })
+document.addEventListener('fullscreenchange',  () => { if (!document.fullscreenElement) autoSubmit('fullscreen_exit') })
+window.addEventListener('beforeunload', e => { autoSubmit('tab_close'); e.preventDefault(); e.returnValue = '' })
+window.addEventListener('blur', () => autoSubmit('window_blur'))
+document.addEventListener('keydown', e => { if ((e.ctrlKey && e.key==='u') || e.key==='F12') e.preventDefault() })
+
+async function autoSubmit(reason) {
+  if (isSubmitting || hasCompleted) return
+  isSubmitting = true
+  hasCompleted  = true
+
+  try {
+    await api.logEvent(session.session_id, session.session_token, reason, { timestamp: Date.now() })
+  } catch {}
+
+  // Submit unsaved questions
+  for (const q of questions) {
+    if (submitted.has(q.id)) continue
+    const c = code[q.id]
+    if (!c) continue
+    try {
+      const replay = replays[q.id]
+      if (replay) replay.snapshots.push({ t: Date.now()-replay.startTime, code: c, trigger:'submit' })
+      await api.submitAnswer({
+        session_token: session.session_token,
+        question_id:   q.id,
+        code:          c,
+        test_results:  null,
+        is_final:      true,
+        speed_metrics: buildMetricsPayload(q.id),
+        typing_replay: replay || null,
+      })
+    } catch {}
+  }
+
+  try {
+    await api.completeSession(session.session_id, session.session_token)
+  } catch {}
+
+  document.exitFullscreen().catch(() => {})
+  window.location.replace(`/test/complete.html?round=${roundId}`)
+}
+
+// ---- Run ----
+document.getElementById('btn-run').addEventListener('click', async () => {
+  const q = questions[currentIdx]
+  if (!q || !pythonReady || running) return
+  running = true
+  updateButtons()
+
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  try {
+    const results = await runPython(code[q.id] || '', visible)
+    runResults[q.id] = results
+    renderOutput(q.id)
+
+    // Record run in replay
+    const replay = replays[q.id]
+    if (replay) {
+      const t = Date.now() - replay.startTime
+      replay.snapshots.push({ t, code: code[q.id]||'', trigger:'run' })
+      replay.runEvents.push({ t, results })
+    }
+  } catch (e) { toastError('Run failed: ' + e.message) }
+  running = false
+  updateButtons()
+})
+
+// ---- Submit ----
+document.getElementById('btn-submit').addEventListener('click', () => {
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id) || !pythonReady) return
+  document.getElementById('modal-submit').classList.add('open')
+})
+
+document.getElementById('modal-submit-cancel').addEventListener('click', () => {
+  document.getElementById('modal-submit').classList.remove('open')
+})
+
+document.getElementById('modal-submit-ok').addEventListener('click', async () => {
+  document.getElementById('modal-submit').classList.remove('open')
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id) || !pythonReady || submitting) return
+
+  submitting = true
+  updateButtons()
+
+  try {
+    // Fetch all test cases (including hidden)
+    const allQs = await api.getQuestions(roundId, session.session_token, true)
+    const fullQ  = allQs.find(x => x.id === q.id)
+    const allTcs = fullQ?.test_cases || []
+
+    const results = await runPython(code[q.id] || '', allTcs)
+
+    // Record submit snapshot
+    const replay = replays[q.id]
+    if (replay) replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'submit' })
+
+    const res = await api.submitAnswer({
+      session_token: session.session_token,
+      question_id:   q.id,
+      code:          code[q.id],
+      test_results:  results,
+      is_final:      true,
+      speed_metrics: buildMetricsPayload(q.id),
+      typing_replay: replay || null,
+    })
+
+    if (res.error) { toastError(res.error); return }
+
+    submitted.add(q.id)
+    // Show only visible results
+    runResults[q.id] = results.filter(r => !r.is_hidden)
+    renderOutput(q.id)
+    updateDots()
+    updateButtons()
+
+    const passed = results.filter(r => r.passed).length
+    toastSuccess(`Submitted: ${passed}/${results.length} passed (Score: ${res.score})`)
+
+    if (currentIdx < questions.length - 1) renderQuestion(currentIdx + 1)
+  } catch (err) {
+    toastError('Submit error: ' + err.message)
+  }
+  submitting = false
+  updateButtons()
+})
+
+// ---- Navigation ----
+document.getElementById('btn-prev').addEventListener('click', () => { if (currentIdx > 0) renderQuestion(currentIdx - 1) })
+document.getElementById('btn-next').addEventListener('click', () => { if (currentIdx < questions.length-1) renderQuestion(currentIdx + 1) })
+
+// ---- Finish ----
+document.getElementById('btn-finish').addEventListener('click', () => {
+  document.getElementById('modal-finish').classList.add('open')
+})
+document.getElementById('modal-finish-cancel').addEventListener('click', () => {
+  document.getElementById('modal-finish').classList.remove('open')
+})
+document.getElementById('modal-finish-ok').addEventListener('click', async () => {
+  if (hasCompleted) return
+  hasCompleted = true
+  document.getElementById('modal-finish').classList.remove('open')
+  try {
+    await api.completeSession(session.session_id, session.session_token)
+  } catch {}
+  document.exitFullscreen().catch(() => {})
+  window.location.replace(`/test/complete.html?round=${roundId}`)
+})
+</script>
+</body>
+</html>

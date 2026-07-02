@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assessment Complete</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="complete-page">
+  <div class="complete-card" id="card-loading">
+    <div class="spinner" style="margin:0 auto 1rem"></div>
+    <p class="text-muted">Finalizing your submission...</p>
+  </div>
+
+  <div class="complete-card hidden" id="card-done">
+    <div class="complete-icon">&#10003;</div>
+    <h2 id="done-title">Assessment Submitted</h2>
+    <p class="mt-2 mb-6" id="done-msg">Your responses have been recorded successfully.</p>
+    <div id="done-status"></div>
+    <a href="/test/" class="btn btn-primary mt-6" style="display:inline-block">Back to Portal</a>
+  </div>
+
+  <div class="complete-card hidden" id="card-disq">
+    <div class="complete-icon" style="color:var(--red-400)">&#9888;</div>
+    <h2>Session Ended</h2>
+    <p class="mt-2 mb-6" style="color:var(--text-300)">Your session was ended due to a violation (tab switch / fullscreen exit).</p>
+    <a href="/test/" class="btn btn-ghost mt-4" style="display:inline-block">Back to Portal</a>
+  </div>
+</div>
+
+<script type="module">
+import { loadTestSession, clearTestSession } from '/js/utils.js'
+
+// Exit fullscreen on page load
+document.addEventListener('DOMContentLoaded', () => {
+  document.exitFullscreen?.().catch(() => {})
+})
+
+const params  = new URLSearchParams(location.search)
+const roundId = params.get('round')
+const session = loadTestSession(roundId)
+
+// Show appropriate card
+setTimeout(() => {
+  document.getElementById('card-loading').classList.add('hidden')
+
+  if (!session) {
+    document.getElementById('card-done').classList.remove('hidden')
+    document.getElementById('done-title').textContent = 'Assessment Complete'
+    document.getElementById('done-msg').textContent   = 'Your responses have been recorded.'
+    return
+  }
+
+  // Check disqualification status
+  fetch(`/api/test/session/${session.session_id}/status?token=${encodeURIComponent(session.session_token)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'disqualified') {
+        document.getElementById('card-disq').classList.remove('hidden')
+      } else {
+        document.getElementById('card-done').classList.remove('hidden')
+        document.getElementById('done-title').textContent = `Well done, ${session.candidate_name || 'Candidate'}!`
+        document.getElementById('done-msg').textContent   = 'Your assessment has been submitted successfully. Results will be communicated by the organizer.'
+        document.getElementById('done-status').innerHTML  = `
+          <div class="flex justify-center gap-4 flex-wrap">
+            <div class="stat-card" style="text-align:center;min-width:120px">
+              <div class="stat-label">Round</div>
+              <div class="stat-value" style="font-size:1.25rem">${escHtml(session.round_title||'—')}</div>
+            </div>
+          </div>`
+      }
+      clearTestSession(roundId)
+    })
+    .catch(() => {
+      document.getElementById('card-done').classList.remove('hidden')
+      clearTestSession(roundId)
+    })
+}, 1200)
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+</script>
+</body>
+</html>

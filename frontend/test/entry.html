@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assessment Entry — Rules &amp; Registration</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div style="min-height:100vh;display:flex;flex-direction:column;">
+  <!-- Nav -->
+  <nav style="background:var(--bg-800);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;gap:.75rem;">
+    <a href="/test/" class="btn btn-ghost btn-sm">&larr; Back</a>
+    <span style="font-weight:600;font-size:1rem" id="round-name">Loading...</span>
+  </nav>
+
+  <main style="max-width:680px;margin:2rem auto;padding:0 1.5rem;width:100%">
+    <!-- Round info card -->
+    <div class="card mb-4" id="round-info">
+      <div class="flex items-center gap-3 mb-3">
+        <div id="round-badges"></div>
+        <span class="text-sm text-muted" id="round-duration"></span>
+      </div>
+      <p class="text-sm" id="round-desc"></p>
+    </div>
+
+    <!-- Rules -->
+    <div class="card mb-4">
+      <h3 class="mb-3">&#9888; Rules &amp; Guidelines</h3>
+      <ul style="list-style:none;display:flex;flex-direction:column;gap:.625rem">
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> The exam will run in <strong>fullscreen mode</strong>. Exiting fullscreen will immediately end your test.</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> <strong>Switching tabs</strong> or minimizing the window will disqualify you automatically.</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> <strong>Do not use an AI assistant</strong> or search engine during the test.</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--amber-400);flex-shrink:0">&#8226;</span> All typing activity is recorded for malpractice review.</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--amber-400);flex-shrink:0">&#8226;</span> The timer starts as soon as you click "Enter Exam".</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--green-400);flex-shrink:0">&#8226;</span> You may use <strong>Python 3</strong> for coding questions (runs in browser).</li>
+        <li class="flex items-start gap-2 text-sm"><span style="color:var(--green-400);flex-shrink:0">&#8226;</span> <strong>Use incognito/private mode</strong> for the cleanest experience.</li>
+      </ul>
+    </div>
+
+    <!-- Incognito checkbox -->
+    <div class="card mb-4">
+      <label class="toggle-wrap" style="cursor:pointer;gap:.75rem">
+        <span class="toggle" id="incognito-toggle"></span>
+        <span class="text-sm">I confirm I am using <strong>incognito / private browsing mode</strong></span>
+      </label>
+    </div>
+
+    <!-- Registration form -->
+    <div class="card" id="reg-card">
+      <h3 class="mb-4">Register to Take Test</h3>
+      <form id="form-register">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" class="input" name="candidate_name" required placeholder="Your full name">
+          </div>
+          <div class="form-group">
+            <label>Email Address *</label>
+            <input type="email" class="input" name="candidate_email" required placeholder="you@example.com">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>College / Institution</label>
+            <input type="text" class="input" name="college_name" placeholder="Your college">
+          </div>
+          <div class="form-group">
+            <label>Roll Number</label>
+            <input type="text" class="input" name="roll_no" placeholder="e.g. 21CS001">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Branch / Department</label>
+          <input type="text" class="input" name="branch" placeholder="e.g. Computer Science">
+        </div>
+
+        <div style="background:rgba(79,70,229,0.08);border:1px solid var(--indigo-600);border-radius:var(--radius);padding:.875rem;margin-top:1rem;font-size:.875rem;">
+          <strong>Ready to begin?</strong> Clicking "Enter Exam" will start your timer and request fullscreen.
+          Make sure you have enough time to complete the exam.
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full mt-4" id="btn-enter" style="font-size:1rem;padding:.75rem">
+          Enter Exam &rarr;
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import api from '/js/api.js'
+import { toastError, roundTypeBadge, saveTestSession } from '/js/utils.js'
+
+const params = new URLSearchParams(location.search)
+const roundId = params.get('round')
+if (!roundId) { window.location.replace('/test/'); throw 0 }
+
+let incognitoConfirmed = false
+
+// Toggle incognito
+const toggle = document.getElementById('incognito-toggle')
+toggle.addEventListener('click', () => {
+  toggle.classList.toggle('on')
+  incognitoConfirmed = toggle.classList.contains('on')
+})
+
+// Load round info
+async function loadRound() {
+  try {
+    const rounds = await api.getPublicRounds()
+    const round = rounds.find(r => r.id === roundId)
+    if (!round) { window.location.replace('/test/'); return }
+
+    document.getElementById('round-name').textContent = round.title
+    document.getElementById('round-duration').textContent = `${round.duration_minutes} minutes`
+    document.getElementById('round-badges').innerHTML = roundTypeBadge(round.round_type)
+    document.getElementById('round-desc').textContent = round.description || ''
+  } catch (e) { toastError('Failed to load round info') }
+}
+
+// Register + start
+document.getElementById('form-register').addEventListener('submit', async e => {
+  e.preventDefault()
+  if (!incognitoConfirmed) {
+    alert('Please confirm you are using incognito / private mode.')
+    return
+  }
+
+  const fd = new FormData(e.target)
+  const btn = document.getElementById('btn-enter')
+  btn.disabled = true
+  btn.textContent = 'Registering...'
+
+  try {
+    // Register candidate
+    const reg = await api.registerCandidate(roundId, {
+      candidate_name:  fd.get('candidate_name'),
+      candidate_email: fd.get('candidate_email'),
+      college_name:    fd.get('college_name') || null,
+      roll_no:         fd.get('roll_no') || null,
+      branch:          fd.get('branch') || null,
+    })
+
+    if (reg.error) { toastError(reg.error); btn.disabled = false; btn.textContent = 'Enter Exam →'; return }
+
+    // Start session
+    btn.textContent = 'Starting...'
+    const started = await api.startSession(roundId, reg.session_token)
+
+    if (started.error) { toastError(started.error); btn.disabled = false; btn.textContent = 'Enter Exam →'; return }
+
+    // Save session to localStorage
+    saveTestSession(roundId, {
+      session_token:    reg.session_token,
+      session_id:       reg.session_id,
+      round_id:         roundId,
+      round_title:      started.round_title,
+      round_type:       started.round_type,
+      duration_minutes: started.duration_minutes,
+      expires_at:       started.expires_at,
+      candidate_name:   fd.get('candidate_name'),
+    })
+
+    // Request fullscreen, then navigate
+    try {
+      await document.documentElement.requestFullscreen()
+    } catch {}
+
+    window.location.replace(`/test/exam.html?round=${roundId}`)
+  } catch (err) {
+    toastError(err.message)
+    btn.disabled = false
+    btn.textContent = 'Enter Exam →'
+  }
+})
+
+await loadRound()
+</script>
+</body>
+</html>

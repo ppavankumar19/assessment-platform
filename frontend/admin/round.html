@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Round — Assessment Platform</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><span class="logo-icon">&#9670;</span> Assessment</div>
+    <nav class="sidebar-nav">
+      <a href="/admin/">&#128202; Dashboard</a>
+      <a href="#" class="active">&#128196; Round Detail</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar">A</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="user-name">Admin</div>
+          <div class="sidebar-user-role">Admin</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="admin-content">
+    <!-- Header -->
+    <div class="content-header">
+      <div class="flex items-center gap-3">
+        <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+        <a href="/admin/" class="btn btn-ghost btn-sm">&larr; Back</a>
+        <div>
+          <h2 id="round-title">Loading...</h2>
+          <div class="flex items-center gap-2 mt-1" id="round-meta"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2" id="round-actions"></div>
+    </div>
+
+    <div class="content-body">
+      <!-- Stats row -->
+      <div class="grid-5 mb-6">
+        <div class="stat-card clickable" id="stat-cutoff" title="Click to edit cutoff score">
+          <div class="stat-label">Cutoff Score</div>
+          <div class="stat-value amber" id="val-cutoff">—</div>
+        </div>
+        <div class="stat-card"><div class="stat-label">Questions</div><div class="stat-value" id="val-questions">—</div></div>
+        <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value indigo" id="val-sessions">—</div></div>
+        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value green" id="val-completed">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-value" id="val-avg">—</div></div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-4 mb-4" style="border-bottom:1px solid var(--border)">
+        <button class="tab-btn active" data-tab="questions" style="padding:.625rem 0;background:none;border:none;cursor:pointer;color:var(--text-300);font-weight:600;border-bottom:2px solid var(--indigo-500);margin-bottom:-1px">Questions</button>
+        <button class="tab-btn" data-tab="sessions" style="padding:.625rem 0;background:none;border:none;cursor:pointer;color:var(--text-500);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px">Sessions</button>
+      </div>
+
+      <!-- Questions tab -->
+      <div id="tab-questions">
+        <div class="section-header mb-4">
+          <span class="text-sm text-muted" id="q-count-label">0 questions</span>
+          <button class="btn btn-primary btn-sm" id="btn-add-question">+ Add Question</button>
+        </div>
+        <div id="questions-list"></div>
+      </div>
+
+      <!-- Sessions tab -->
+      <div id="tab-sessions" class="hidden">
+        <div class="section-header mb-4">
+          <span class="text-sm text-muted" id="sessions-count-label">Loading...</span>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" id="btn-export">Export All</button>
+            <button class="btn btn-outline btn-sm" id="btn-export-final">Export Finalized</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Candidate</th>
+                  <th>College / Roll</th>
+                  <th>Status</th>
+                  <th>Score</th>
+                  <th>Started</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-tbody"></tbody>
+            </table>
+          </div>
+          <div id="sessions-empty" class="empty-state hidden"><p>No sessions yet.</p></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add/Edit Question Modal -->
+<div class="modal-backdrop" id="modal-question">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-q-title">Add Question</span>
+      <button class="modal-close" data-close="modal-question">&times;</button>
+    </div>
+    <form id="form-question">
+      <input type="hidden" name="question_id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Title *</label>
+          <input type="text" class="input" name="title" required>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select class="select" name="question_type">
+            <option value="coding">Coding</option>
+            <option value="output_prediction">Output Prediction</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea class="textarea" name="description" rows="3" placeholder="Problem statement..."></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Points</label>
+          <input type="number" class="input" name="points" value="100" min="0">
+        </div>
+        <div class="form-group">
+          <label>Order Index</label>
+          <input type="number" class="input" name="order_index" value="0" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Starter Code (Python)</label>
+        <textarea class="textarea" name="starter_code" rows="4" placeholder="# Starter code..." style="font-family:monospace;font-size:.8125rem"></textarea>
+      </div>
+
+      <!-- Test Cases -->
+      <div class="sep"></div>
+      <div class="section-header mb-3">
+        <h4>Test Cases</h4>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-add-tc">+ Add Test Case</button>
+      </div>
+      <div id="test-cases-editor"></div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close="modal-question">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-save-question">Save Question</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Round Modal -->
+<div class="modal-backdrop" id="modal-edit-round">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Edit Round</span>
+      <button class="modal-close" data-close="modal-edit-round">&times;</button>
+    </div>
+    <form id="form-edit-round">
+      <div class="form-group"><label>Title</label><input type="text" class="input" name="title" required></div>
+      <div class="form-group"><label>Description</label><textarea class="textarea" name="description"></textarea></div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Type</label>
+          <select class="select" name="round_type">
+            <option value="live_coding">Live Coding</option>
+            <option value="output_prediction">Output Prediction</option>
+            <option value="mcq">MCQ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Duration (min)</label>
+          <input type="number" class="input" name="duration_minutes" min="5">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close="modal-edit-round">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal confirm-dialog">
+    <div class="modal-header"><span class="modal-title" id="confirm-title">Confirm</span></div>
+    <p class="confirm-msg" id="confirm-msg"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import api from '/js/api.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, formatDate, statusBadge, roundStatusBadge, roundTypeBadge } from '/js/utils.js'
+
+const token = localStorage.getItem('admin_token')
+if (!token) { window.location.replace('/login.html'); throw 0 }
+
+const params = new URLSearchParams(location.search)
+const roundId = params.get('id')
+if (!roundId) { window.location.replace('/admin/'); throw 0 }
+
+let round = null
+let sessions = []
+let testCaseCount = 0
+
+// Sidebar toggle
+document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open')
+})
+
+// Close modals
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close))
+})
+
+// Logout
+document.getElementById('btn-logout').addEventListener('click', () => {
+  localStorage.removeItem('admin_token')
+  window.location.replace('/login.html')
+})
+
+// Load user
+;(async () => {
+  try {
+    const u = await api.getUser()
+    document.getElementById('user-name').textContent = u.full_name || u.email
+    const av = document.getElementById('user-avatar')
+    if (u.avatar_url) av.innerHTML = `<img src="${u.avatar_url}" alt="">`
+    else av.textContent = (u.full_name || u.email || 'A')[0].toUpperCase()
+  } catch { window.location.replace('/login.html') }
+})()
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.style.color = 'var(--text-500)'
+      b.style.borderBottomColor = 'transparent'
+    })
+    btn.style.color = 'var(--text-300)'
+    btn.style.borderBottomColor = 'var(--indigo-500)'
+    document.getElementById('tab-questions').classList.toggle('hidden', btn.dataset.tab !== 'questions')
+    document.getElementById('tab-sessions').classList.toggle('hidden', btn.dataset.tab !== 'sessions')
+    if (btn.dataset.tab === 'sessions') loadSessions()
+  })
+})
+
+// --- Load round ---
+async function loadRound() {
+  round = await api.getRound(roundId)
+  document.title = `${round.title} — Assessment Platform`
+  document.getElementById('round-title').textContent = round.title
+  document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`
+  document.getElementById('val-cutoff').textContent = round.cutoff_score ?? '—'
+  document.getElementById('val-questions').textContent = round.questions?.length || 0
+  document.getElementById('q-count-label').textContent = `${round.questions?.length || 0} question${(round.questions?.length || 0) !== 1 ? 's' : ''}`
+  renderActions()
+  renderQuestions()
+}
+
+function renderActions() {
+  const el = document.getElementById('round-actions')
+  const { is_published, is_active } = round
+  el.innerHTML = `
+    <button class="btn btn-outline btn-sm" id="btn-edit-round">Edit</button>
+    ${!is_published
+      ? `<button class="btn btn-success btn-sm" id="btn-publish">Publish</button>`
+      : is_active
+        ? `<button class="btn btn-ghost btn-sm" id="btn-pause">Pause</button>
+           <button class="btn btn-outline btn-sm" id="btn-unpublish">Unpublish</button>`
+        : `<button class="btn btn-success btn-sm" id="btn-publish">Republish</button>`
+    }
+  `
+  el.querySelector('#btn-edit-round')?.addEventListener('click', openEditRound)
+  el.querySelector('#btn-publish')?.addEventListener('click', publishRound)
+  el.querySelector('#btn-pause')?.addEventListener('click', pauseRound)
+  el.querySelector('#btn-unpublish')?.addEventListener('click', unpublishRound)
+}
+
+// Cutoff click to edit
+document.getElementById('stat-cutoff').addEventListener('click', () => {
+  const v = prompt('Set cutoff score:', round.cutoff_score ?? '')
+  if (v === null) return
+  const num = v === '' ? null : Number(v)
+  api.updateRound(roundId, { ...round, cutoff_score: num })
+    .then(r => { round = r; document.getElementById('val-cutoff').textContent = r.cutoff_score ?? '—'; toastSuccess('Cutoff updated') })
+    .catch(e => toastError(e.message))
+})
+
+async function publishRound() {
+  try { round = await api.publishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Published!') }
+  catch (e) { toastError(e.message) }
+}
+async function pauseRound() {
+  try { round = await api.pauseRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Paused') }
+  catch (e) { toastError(e.message) }
+}
+async function unpublishRound() {
+  try { round = await api.unpublishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Unpublished') }
+  catch (e) { toastError(e.message) }
+}
+
+function openEditRound() {
+  const form = document.getElementById('form-edit-round')
+  form.title.value = round.title
+  form.description.value = round.description || ''
+  form.round_type.value = round.round_type
+  form.duration_minutes.value = round.duration_minutes
+  openModal('modal-edit-round')
+}
+document.getElementById('form-edit-round').addEventListener('submit', async e => {
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  try {
+    round = await api.updateRound(roundId, {
+      title: fd.get('title'), description: fd.get('description'),
+      round_type: fd.get('round_type'), duration_minutes: Number(fd.get('duration_minutes')),
+    })
+    closeModal('modal-edit-round')
+    document.getElementById('round-title').textContent = round.title
+    toastSuccess('Round updated')
+  } catch (err) { toastError(err.message) }
+})
+
+// --- Questions ---
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+function renderQuestions() {
+  const qs = round.questions || []
+  const container = document.getElementById('questions-list')
+  if (qs.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><p>No questions yet.</p></div>`
+    return
+  }
+  container.innerHTML = qs.map((q, i) => {
+    const visibleTc = q.test_cases?.filter(t => !t.is_hidden) || []
+    const hiddenTc  = q.test_cases?.filter(t => t.is_hidden)  || []
+    return `
+    <div class="question-card mb-3" id="qcard-${q.id}">
+      <div class="question-card-header" onclick="toggleQCard('${q.id}')">
+        <div class="flex items-center gap-3">
+          <span class="text-muted text-sm">#${i+1}</span>
+          <span class="font-semibold">${escHtml(q.title)}</span>
+          <span class="badge badge-gray">${q.points} pts</span>
+          <span class="badge badge-indigo">${q.question_type}</span>
+          <span class="text-sm text-muted">${visibleTc.length} visible / ${hiddenTc.length} hidden test cases</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditQuestion('${q.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-danger" onclick="event.stopPropagation();deleteQuestion('${q.id}','${escHtml(q.title)}')">Delete</button>
+          <span class="q-chevron">&#8964;</span>
+        </div>
+      </div>
+      <div class="question-card-body">
+        ${q.description ? `<p class="text-sm mb-3">${escHtml(q.description)}</p>` : ''}
+        ${q.starter_code ? `<div class="form-group"><label>Starter Code</label><div class="io-value" style="max-height:10rem;overflow:auto">${escHtml(q.starter_code)}</div></div>` : ''}
+        <div class="sep"></div>
+        <h4 class="mb-3">Test Cases (${q.test_cases?.length || 0} total)</h4>
+        ${(q.test_cases||[]).map((tc,j) => `
+          <div class="test-case-card">
+            <div class="test-case-header">
+              <span class="text-xs font-semibold text-muted">Case ${j+1} — ${tc.points} pts${tc.is_hidden ? ' &nbsp;<span class="badge badge-amber">Hidden</span>' : ''}</span>
+            </div>
+            <div class="test-case-io">
+              <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
+              <div><div class="io-label">Expected Output</div><div class="io-value">${escHtml(tc.expected_output)}</div></div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`
+  }).join('')
+}
+
+window.toggleQCard = id => document.getElementById(`qcard-${id}`)?.classList.toggle('open')
+
+// Add question
+document.getElementById('btn-add-question').addEventListener('click', () => {
+  const form = document.getElementById('form-question')
+  form.reset()
+  form.question_id.value = ''
+  form.question_type.value = round.round_type === 'live_coding' ? 'coding' : 'output_prediction'
+  document.getElementById('modal-q-title').textContent = 'Add Question'
+  document.getElementById('btn-save-question').textContent = 'Add Question'
+  testCaseCount = 0
+  document.getElementById('test-cases-editor').innerHTML = ''
+  openModal('modal-question')
+})
+
+window.openEditQuestion = id => {
+  const q = round.questions?.find(x => x.id === id)
+  if (!q) return
+  const form = document.getElementById('form-question')
+  form.reset()
+  form.question_id.value = q.id
+  form.title.value = q.title
+  form.description.value = q.description || ''
+  form.question_type.value = q.question_type
+  form.points.value = q.points
+  form.order_index.value = q.order_index || 0
+  form.starter_code.value = q.starter_code || ''
+  document.getElementById('modal-q-title').textContent = 'Edit Question'
+  document.getElementById('btn-save-question').textContent = 'Save Changes'
+  // Render existing test cases
+  testCaseCount = 0
+  document.getElementById('test-cases-editor').innerHTML = ''
+  ;(q.test_cases||[]).forEach(tc => addTestCaseRow(tc))
+  openModal('modal-question')
+}
+
+document.getElementById('btn-add-tc').addEventListener('click', () => addTestCaseRow(null))
+
+function addTestCaseRow(tc = null) {
+  const idx = testCaseCount++
+  const row = document.createElement('div')
+  row.className = 'test-case-card'
+  row.dataset.idx = idx
+  row.innerHTML = `
+    <div class="test-case-header">
+      <span class="text-xs font-semibold text-muted">Case ${idx+1}</span>
+      <div class="flex items-center gap-2">
+        <label class="toggle-wrap text-xs text-muted">
+          <span class="toggle${tc?.is_hidden ? ' on' : ''}" data-toggle-hidden></span> Hidden
+        </label>
+        <input type="hidden" name="tc_hidden_${idx}" value="${tc?.is_hidden ? 'true' : 'false'}">
+        <input type="number" class="input input-sm" name="tc_points_${idx}" value="${tc?.points||0}" style="width:5rem" placeholder="pts">
+        <button type="button" class="btn btn-icon danger" onclick="this.closest('[data-idx]').remove()">&#215;</button>
+      </div>
+    </div>
+    <div class="test-case-io">
+      <div>
+        <div class="io-label">Input</div>
+        <textarea class="textarea input-sm" name="tc_input_${idx}" rows="2" placeholder="(empty)">${escHtml(tc?.input||'')}</textarea>
+      </div>
+      <div>
+        <div class="io-label">Expected Output</div>
+        <textarea class="textarea input-sm" name="tc_expected_${idx}" rows="2" placeholder="expected output">${escHtml(tc?.expected_output||'')}</textarea>
+      </div>
+    </div>
+  `
+  // Toggle logic
+  const toggle = row.querySelector('[data-toggle-hidden]')
+  const hiddenInput = row.querySelector(`[name="tc_hidden_${idx}"]`)
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('on')
+    hiddenInput.value = toggle.classList.contains('on') ? 'true' : 'false'
+  })
+  document.getElementById('test-cases-editor').appendChild(row)
+}
+
+// Collect test cases from form
+function collectTestCases(form) {
+  const tcs = []
+  const editor = document.getElementById('test-cases-editor')
+  editor.querySelectorAll('[data-idx]').forEach((row, i) => {
+    const idx = row.dataset.idx
+    tcs.push({
+      input:           form[`tc_input_${idx}`]?.value || '',
+      expected_output: form[`tc_expected_${idx}`]?.value || '',
+      is_hidden:       form[`tc_hidden_${idx}`]?.value === 'true',
+      points:          Number(form[`tc_points_${idx}`]?.value || 0),
+      order_index:     i,
+    })
+  })
+  return tcs
+}
+
+document.getElementById('form-question').addEventListener('submit', async e => {
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  const qId = fd.get('question_id')
+  const form = e.target
+  const body = {
+    round_id:      roundId,
+    title:         fd.get('title'),
+    description:   fd.get('description') || null,
+    question_type: fd.get('question_type'),
+    points:        Number(fd.get('points')),
+    order_index:   Number(fd.get('order_index')),
+    starter_code:  fd.get('starter_code') || null,
+    test_cases:    collectTestCases(form),
+  }
+  const btn = document.getElementById('btn-save-question')
+  btn.disabled = true
+  try {
+    if (qId) await api.updateQuestion(qId, body)
+    else      await api.createQuestion(body)
+    closeModal('modal-question')
+    toastSuccess(qId ? 'Question updated' : 'Question added')
+    round = await api.getRound(roundId)
+    document.getElementById('val-questions').textContent = round.questions?.length || 0
+    document.getElementById('q-count-label').textContent = `${round.questions?.length || 0} question${(round.questions?.length||0)!==1?'s':''}`
+    renderQuestions()
+  } catch (err) { toastError(err.message) }
+  finally { btn.disabled = false; btn.textContent = qId ? 'Save Changes' : 'Add Question' }
+})
+
+window.deleteQuestion = (id, title) => {
+  confirm(`Delete question "${title}"?`, async () => {
+    try {
+      await api.deleteQuestion(id)
+      toastSuccess('Question deleted')
+      round = await api.getRound(roundId)
+      document.getElementById('val-questions').textContent = round.questions?.length || 0
+      renderQuestions()
+    } catch (e) { toastError(e.message) }
+  }, 'Delete Question')
+}
+
+// --- Sessions ---
+async function loadSessions() {
+  try {
+    sessions = await api.getRoundSessions(roundId)
+    document.getElementById('sessions-count-label').textContent = `${sessions.length} session${sessions.length!==1?'s':''}`
+    document.getElementById('val-sessions').textContent = sessions.length
+    const comp = sessions.filter(s => s.status === 'completed').length
+    const disq = sessions.filter(s => s.status === 'disqualified').length
+    document.getElementById('val-completed').textContent = comp
+    const scored = sessions.filter(s => s.score != null && s.score > 0)
+    document.getElementById('val-avg').textContent = scored.length
+      ? Math.round(scored.reduce((s,x) => s+(x.score||0), 0) / scored.length)
+      : '—'
+    renderSessions()
+  } catch (e) { toastError(e.message) }
+}
+
+function renderSessions() {
+  const tbody = document.getElementById('sessions-tbody')
+  const empty = document.getElementById('sessions-empty')
+  if (sessions.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return }
+  empty.classList.add('hidden')
+  tbody.innerHTML = sessions.map(s => `
+    <tr>
+      <td>
+        <div class="font-semibold text-sm">${escHtml(s.candidate_name||'—')}</div>
+        <div class="text-xs text-muted">${escHtml(s.candidate_email||'')}</div>
+      </td>
+      <td>
+        <div class="text-sm">${escHtml(s.college_name||'—')}</div>
+        <div class="text-xs text-muted">${escHtml(s.roll_no||'')} ${s.branch ? `· ${escHtml(s.branch)}` : ''}</div>
+      </td>
+      <td>${statusBadge(s.status)}</td>
+      <td class="font-semibold">${s.score ?? '—'}</td>
+      <td class="text-sm text-muted">${s.started_at ? new Date(s.started_at).toLocaleString() : '—'}</td>
+      <td>
+        <div class="flex items-center gap-1">
+          <a href="/admin/playback.html?session=${s.id}" class="btn btn-icon" title="View replay">&#9654;</a>
+          <button class="btn btn-icon warning" title="Disqualify" onclick="disqualifySession('${s.id}','${escHtml(s.candidate_name||'')}')">&#9888;</button>
+          <button class="btn btn-icon danger" title="Delete session" onclick="deleteSession('${s.id}','${escHtml(s.candidate_name||'')}')">&#128465;</button>
+        </div>
+      </td>
+    </tr>
+  `).join('')
+}
+
+window.disqualifySession = (id, name) => {
+  confirm(`Disqualify "${name}"?`, async () => {
+    try { await api.disqualifySession(id); toastSuccess('Disqualified'); loadSessions() }
+    catch (e) { toastError(e.message) }
+  }, 'Disqualify Candidate')
+}
+
+window.deleteSession = (id, name) => {
+  confirm(`Delete session for "${name}"? This cannot be undone.`, async () => {
+    try { await api.deleteSession(id); toastSuccess('Session deleted'); loadSessions() }
+    catch (e) { toastError(e.message) }
+  }, 'Delete Session')
+}
+
+// Export
+async function doExport(finalized) {
+  try {
+    const res = await api.exportRound(roundId, finalized)
+    const blob = await res.blob()
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = `round-${roundId}-results.csv`; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { toastError(e.message) }
+}
+document.getElementById('btn-export')?.addEventListener('click', () => doExport(false))
+document.getElementById('btn-export-final')?.addEventListener('click', () => doExport(true))
+
+await loadRound()
+</script>
+</body>
+</html>
