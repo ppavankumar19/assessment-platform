@@ -64,9 +64,10 @@
 - CORS restricted to configured origin
 
 #### Infrastructure
-- Node.js + Fastify serving both API and static frontend
+- Node.js + Fastify API deployed as a Vercel serverless function (`api/index.js`)
+- Static frontend served from Vercel CDN (`frontend/` directory)
 - Supabase Cloud (auth + database)
-- Deploy on any VPS, Docker container, or behind Nginx
+- Production URL: `https://assessment-platform-drab.vercel.app`
 
 ---
 
@@ -251,7 +252,7 @@ Success criteria:
 | **Database** | Supabase PostgreSQL; no additional database (Redis, etc.) |
 | **Code execution** | Pyodide (browser WASM); Python 3 only; no server-side sandbox |
 | **Browser requirement** | Chrome 110+, Firefox 115+, Edge 110+; fullscreen API required |
-| **Network** | Candidates require internet for Pyodide CDN load (~10 MB first visit) |
-| **Deployment model** | Any VPS or cloud VM; no platform lock-in |
-| **Assessment scale** | 200+ concurrent candidates on a single server; scale by adding Node.js instances |
+| **Network** | Candidates require internet for Pyodide CDN load (~10 MB first visit); Vercel CDN serves static assets globally |
+| **Deployment model** | Vercel (serverless); `vercel --prod` to deploy |
+| **Assessment scale** | Serverless auto-scales; Supabase connection pool is the primary constraint |
 | **Admin count** | Small number of admins (< 20); single admin role, no permission tiers |
