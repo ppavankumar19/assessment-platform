@@ -1,383 +1,257 @@
-# CodeAssess — Project Scope
+# Assessment Platform — Project Scope
 
-> Defines what the platform will and will not do, sets milestone targets, establishes acceptance criteria, and documents performance, accessibility, and compliance goals.
+> Defines what the platform does and does not do, establishes acceptance criteria, and documents performance, accessibility, and compliance goals.
 
 ---
 
 ## Table of Contents
 
 1. [In-Scope vs Out-of-Scope](#1-in-scope-vs-out-of-scope)
-2. [MVP Milestones](#2-mvp-milestones)
-3. [Feature Prioritization](#3-feature-prioritization)
-4. [Acceptance Criteria](#4-acceptance-criteria)
-5. [Performance Goals](#5-performance-goals)
-6. [Accessibility Goals](#6-accessibility-goals)
-7. [Compliance Goals](#7-compliance-goals)
-8. [Assumptions & Constraints](#8-assumptions--constraints)
+2. [Feature Prioritization](#2-feature-prioritization)
+3. [Acceptance Criteria](#3-acceptance-criteria)
+4. [Performance Goals](#4-performance-goals)
+5. [Accessibility Goals](#5-accessibility-goals)
+6. [Compliance Goals](#6-compliance-goals)
+7. [Assumptions & Constraints](#7-assumptions--constraints)
 
 ---
 
 ## 1. In-Scope vs Out-of-Scope
 
-### In-Scope (MVP and beyond)
+### In-Scope
 
 #### Authentication & Access
-- Supabase Auth: Google OAuth + Magic Link login
-- Invitation-gated candidate access (email-based)
-- Admin role provisioned via bootstrap token
-- JWT session management with Supabase RLS
+- Supabase Auth: Google OAuth + Magic Link for admin login
+- Session-token-based access for candidates (no Supabase auth required)
+- Admin role enforced via `users.role` column, verified server-side on every request
 
 #### Admin Panel
-- Round management: create, edit, delete, publish, pause
-- Question management: C snippet output questions (Round 1), multi-language coding questions (Round 2)
-- Test case editor per question (visible + hidden cases)
-- Bulk candidate invitation via email list / CSV upload
-- Live session monitoring dashboard (status, violations, time remaining)
-- Submission viewer: code, stdout/stderr, score, speed metrics, audit log
-- Results export: CSV and PDF per round
-- Manual disqualification with audit trail
+- Round management: create, edit, delete, publish, pause, unpublish
+- Question management: coding and output-prediction questions
+- Test case editor per question: visible and hidden cases, per-case points
+- Cutoff score per round; export all or cutoff-filtered results as CSV
+- Session management: view all candidate sessions, delete or disqualify
+- Typing replay: per-question keystroke snapshots, paste markers, Monaco viewer
+- Responsive dashboard, sidebar navigation
 
 #### Candidate Portal
-- Instructions and round entry page
-- Fullscreen-enforced assessment session
-- **Round 1:** Read C code snippets, type predicted output, auto-graded
-- **Round 2:** Monaco editor, run code against visible test cases, final submission
-- Per-question countdown display (session-level timer)
-- Anti-cheat event logging (fullscreen, tab switch, paste, copy)
-- Auto-submit on timer expiry
-- Post-round read-only submission review (admin-controlled release)
+- Registration form (name, email, college, roll number, branch) — no invite required
+- Rules and incognito mode confirmation page
+- Fullscreen-enforced exam session with anti-cheat controls
+- Monaco code editor with Python 3 execution via Pyodide (browser WebAssembly)
+- Visible test case "Run" and final "Submit" with hidden test case scoring
+- Timer countdown with auto-submit on expiry
+- Completion and disqualification pages
 
 #### Code Execution
-- Judge0 CE (self-hosted, Docker/Fly.io)
-- Supported languages: C, C++, Python 3, JavaScript (Node), Java, Go
-- Per-submission isolation via `isolate`
-- CPU, memory, and wall-time limits per question
+- Pyodide WebAssembly in a Web Worker — Python 3.11 in the browser
+- Zero server-side execution; no external sandbox service
+- Test cases run client-side; results sent to server for scoring and storage
+- 15-second timeout per execution; worker recovery on timeout
 
 #### Speed & Behavioral Metrics
 - Total keystrokes, paste count, delete count
 - Time to first keystroke per question
 - Active vs idle time breakdown
 - Characters per minute and WPM equivalent
-- Stored per submission; visible to admins only
+- Typing replay: code snapshots on load, every 10s, paste, run, submit
 
 #### Security & Audit
-- Full audit log per session (all anti-cheat events)
-- RLS-enforced data isolation between candidates
-- Secure invitation tokens (HMAC-signed, expiring)
-- Rate limiting on code execution endpoint
-- OWASP Top 10 mitigations
+- Full audit log per session (all anti-cheat events written to `audit_logs`)
+- Auto-disqualification on tab switch, fullscreen exit, window blur
+- Admin can manually disqualify from dashboard or typing playback page
+- Rate limiting on all API endpoints (Fastify rate-limit plugin)
+- CORS restricted to configured origin
 
 #### Infrastructure
-- Vercel deployment (Next.js)
-- Supabase Cloud (auth, database, edge functions, storage)
-- Fly.io deployment (Judge0)
-- GitHub Actions CI/CD (lint, test, deploy)
-- Sentry error monitoring
+- Node.js + Fastify serving both API and static frontend
+- Supabase Cloud (auth + database)
+- Deploy on any VPS, Docker container, or behind Nginx
 
 ---
 
-### Out-of-Scope (V1 / Post-MVP)
+### Out-of-Scope
 
 | Item | Reason / Future Consideration |
 |------|-------------------------------|
-| **Video proctoring** | Privacy complexity, infra cost; candidate-facing webcam recording is V2 |
-| **AI-based plagiarism detection** | Requires ML pipeline; flagged as V2 |
-| **Collaborative coding** | Not a recruitment use case for this platform |
-| **Custom IDE plugins** | Browser-based Monaco editor is sufficient for MVP |
+| **Video proctoring** | Privacy complexity, infra cost; V2 |
+| **AI plagiarism detection** | Requires ML pipeline; V2 |
+| **Multi-language code execution** | Currently Python 3 only via Pyodide; adding more requires server-side sandbox or additional WASM runtimes |
 | **Mobile-responsive candidate portal** | Fullscreen API is unreliable on mobile; desktop-only for assessments |
-| **Third-party ATS integration** (Greenhouse, Lever) | API integration post-GA |
-| **Candidate self-registration** | All access is invitation-gated; self-sign-up out of scope |
+| **Third-party ATS integration** | Post-GA |
 | **Dynamic question randomization** | Fixed question sets per round for V1 |
-| **Voice/audio recording** | Privacy and infra out of scope |
-| **Whiteboard / diagram tools** | Text-based coding only for V1 |
-| **Multi-tenant / SaaS billing** | Single-org deployment; multi-tenancy is post-MVP |
-| **SAML / SSO enterprise auth** | Google OAuth covers initial needs; SAML is V2 |
+| **Multi-tenant / SaaS billing** | Single-org deployment for V1 |
+| **SAML / SSO enterprise auth** | Google OAuth covers initial needs |
 | **Custom branding per round** | Global branding only for V1 |
-| **Automated resume parsing** | Candidate profiles are minimal (name + email) |
-| **Real-time collaborative review** | Admins review asynchronously; live co-review is V2 |
+| **Real-time collaborative review** | Admins review asynchronously |
+| **Offline mode** | Candidates require internet for Pyodide CDN load and API calls |
+| **Bulk candidate invitation via CSV** | Candidates self-register; no invitation gate |
 
 ---
 
-## 2. MVP Milestones
+## 2. Feature Prioritization (MoSCoW)
 
-> **Project Start: Week of 16 June 2026**
-> All dates are Monday of the target completion week.
+### Must-Have
+- Admin: round and question CRUD, publish/pause, session management
+- Candidate: registration, exam flow, timer, auto-submit
+- Anti-cheat: fullscreen enforcement, tab switch auto-disqualification
+- Browser Python execution (Pyodide) with visible + hidden test cases
+- Speed metrics capture and storage
 
-### Milestone 0 — Project Setup (by 23 June 2026)
+### Should-Have
+- Typing replay (keystroke snapshots, paste markers, playback slider)
+- CSV export (all + cutoff-filtered)
+- Remote disqualification by admin
+- Cutoff score and filtered export
 
-| Task | Owner | Done When |
-|------|-------|-----------|
-| Repository created, branch strategy documented | Tech Lead | Repo visible, CI runs on push |
-| Supabase project provisioned (dev + prod) | Backend | Projects exist, .env.example complete |
-| Judge0 deployed to Fly.io (staging) | DevOps | `/api/execute` returns result for "Hello, World" in Python |
-| Next.js scaffold with Supabase Auth | Frontend | Login page works; redirect on auth |
-| Database migrations: all tables + enums | Backend | `supabase db push` succeeds; Supabase Studio shows schema |
-| CI pipeline: lint + test + build | Tech Lead | GitHub Actions green on PR |
+### Could-Have
+- Admin audit log browser per session
+- Email notifications on session completion
+- Bulk operations on sessions (multi-select disqualify)
 
-### Milestone 1 — Admin Core (by 14 July 2026)
-
-| Feature | Acceptance Criteria |
-|---------|---------------------|
-| Round CRUD | Admin can create, edit, delete, and publish a round from the dashboard |
-| Question editor (R1) | Admin can add a C snippet question with expected output; question saved to DB |
-| Question editor (R2) | Admin can add a coding question with visible + hidden test cases |
-| Candidate invitation | Admin uploads email list; invitations saved; magic link email sends |
-| Admin auth guard | Non-admin users are redirected to `/403` when accessing `/admin/*` |
-
-### Milestone 2 — Candidate Portal + Round 1 (by 4 August 2026) ← **MVP**
-
-| Feature | Acceptance Criteria |
-|---------|---------------------|
-| Session start | Candidate redeems invitation, session is created, fullscreen enforced |
-| Round 1 flow | Candidate sees C snippet, types predicted output, submits, gets score |
-| Auto-grading | Score computed server-side using normalized string comparison |
-| Timer | Countdown displays correctly; auto-submits all unanswered questions on expiry |
-| Anti-cheat logging | Fullscreen exit and tab switch events written to `audit_logs` |
-| Session heartbeat | Server detects dead sessions within 90 seconds and marks `timed_out` |
-| Admin monitoring | Admin sees live session list with status and violation count |
-
-> **MVP Definition:** A real recruitment round can be conducted end-to-end using only Round 1 features with full admin oversight.
-
-### Milestone 3 — Round 2: Live Coding (by 1 September 2026)
-
-| Feature | Acceptance Criteria |
-|---------|---------------------|
-| Monaco editor | Editor loads for Round 2; language selector works; syntax highlighting correct |
-| Run (non-final) | Code executes against visible test cases; result displayed within 5 s (p95) |
-| Final submit | Code runs against all test cases (including hidden); score computed and stored |
-| Speed metrics | All metric fields captured per submission; viewable in admin submission detail |
-| Multi-language support | C, C++, Python 3, JS, Java, Go all execute correctly |
-| Paste detection | Paste events counted; logged to audit; viewable per session in admin |
-
-### Milestone 4 — Hardening & Export (by 22 September 2026)
-
-| Feature | Acceptance Criteria |
-|---------|---------------------|
-| Results export (CSV) | Admin can download a CSV with all submissions, scores, and metrics per round |
-| Results export (PDF) | Admin can download a formatted PDF summary per round |
-| Audit log viewer | Admin can browse the full event timeline for any session |
-| Disqualification | Admin can disqualify a session with a reason; candidate is locked out |
-| OWASP ZAP scan | Zero high or critical findings against staging environment |
-| Load test | 100 concurrent candidate sessions sustain without error rate > 0.1 % |
-| WCAG 2.1 AA audit | Automated scan (axe-core) passes on all admin and candidate pages |
-
-### Milestone 5 — General Availability (by 6 October 2026)
-
-| Task | Criteria |
-|------|---------|
-| Production deploy | App live on `codeassess.yourorg.com` |
-| Runbook complete | On-call team has incident playbook |
-| Monitoring alerts | Sentry + Uptime alerts configured; on-call paged on error spike |
-| Stakeholder demo | End-to-end demo with HR and Engineering leadership signed off |
-| Documentation | README, implementation.md, scope.md, specifications.md published in repo |
+### Won't-Have (V1)
+- Video proctoring, AI detection, ATS integration, mobile portal,
+  multi-tenancy, SAML, multi-language execution beyond Python
 
 ---
 
-## 3. Feature Prioritization
-
-### Priority Tiers (MoSCoW)
-
-#### Must-Have (MVP — Milestones 0–2)
-- Admin: round creation, question editor, candidate invitation, publish/pause
-- Candidate: invitation-gated login, Round 1 flow, session timer, auto-submit
-- Anti-cheat: fullscreen enforcement, fullscreen + tab-switch audit logging
-- Admin: live session monitor, violation count visibility
-- Infrastructure: Supabase Auth, PostgreSQL RLS, Judge0 sandbox, CI/CD
-
-#### Should-Have (Milestone 3)
-- Round 2: Monaco editor, multi-language code execution, test case running
-- Speed metrics: keystroke tracking, paste detection, CPM/WPM computation
-- Submission viewer with code + metrics in admin
-
-#### Could-Have (Milestone 4)
-- Results export (CSV / PDF)
-- Audit log browser with event timeline
-- Admin disqualification with reason
-- DevTools detection heuristic
-- Email notifications on session complete
-
-#### Won't-Have (V1)
-- Video proctoring, AI plagiarism detection, ATS integration, mobile portal,
-  multi-tenancy, SAML SSO, custom branding, collaborative review
-  (see [Out-of-Scope](#out-of-scope-v1--post-mvp))
-
----
-
-## 4. Acceptance Criteria
+## 3. Acceptance Criteria
 
 ### AC-01: Admin Creates and Publishes a Round
-
-**Given** the user is logged in as admin  
-**When** they fill out the round creation form and click Publish  
+**Given** the user is logged in as admin
+**When** they fill out the round form and click Publish
 **Then**
-- Round appears in the round list with status "Active"
-- Invited candidates can see the round on their dashboard
-- Non-invited candidates cannot see the round
-- Round details are saved correctly in `rounds` table
+- Round appears in dashboard with "Live" badge
+- Candidates can see it on `/test/`
+- Pausing sets it to "Paused"; unpublishing hides it from candidates
 
-### AC-02: Candidate Starts a Session
-
-**Given** a candidate has received a magic link invitation  
-**When** they click the link, log in, and click "Begin Assessment"  
+### AC-02: Candidate Registers and Starts Session
+**Given** a round is published and active
+**When** candidate fills in the registration form and clicks "Enter Exam"
 **Then**
-- Browser enters fullscreen mode
 - A `candidate_sessions` row is created with `status='started'`
-- `audit_logs` records `session_start`
-- The candidate sees the first question and a running countdown
+- `session_token` is stored in `localStorage`
+- Browser enters fullscreen
+- Candidate is redirected to the exam page
 
-### AC-03: Fullscreen Exit is Logged
-
-**Given** the candidate is in an active fullscreen session  
-**When** they press Escape or otherwise exit fullscreen  
+### AC-03: Fullscreen Exit Triggers Disqualification
+**Given** the candidate is in an active fullscreen session
+**When** they exit fullscreen (Escape or otherwise)
 **Then**
-- `audit_logs` records `fullscreen_exit` with timestamp
-- `candidate_sessions.fullscreen_violations` increments by 1
-- Admin's live monitor shows updated violation count within 3 seconds (Realtime)
-- Candidate sees a warning overlay prompting them to re-enter fullscreen
+- `audit_logs` records `fullscreen_exit`
+- `candidate_sessions.status` is set to `disqualified`
+- Session status polling detects the change within 10 seconds
+- Candidate is redirected to the completion page
 
-### AC-04: Round 1 Answer is Auto-Graded
-
-**Given** the candidate submits a predicted output for a C snippet  
-**When** the submission is processed  
+### AC-04: Code Runs and Scores Correctly (Pyodide)
+**Given** the candidate writes Python code and clicks Run
+**When** Pyodide executes it in the browser
 **Then**
-- Comparison is normalized (trim, case-insensitive, line-ending normalized)
-- `submissions.score` is set to `question.points` if correct, `0` if not
-- `submissions.status` is `accepted` or `wrong_answer`
-- Speed metrics are stored in `speed_metrics`
-- Response returns within 500 ms
+- Visible test case results shown within 5s
+- stdout compared to expected output (normalized: trim + newlines)
+- Pass/fail and timing shown per case
 
-### AC-05: Round 2 Code Executes Correctly
-
-**Given** the candidate writes Python code and clicks Run  
-**When** Judge0 processes the submission  
+**Given** the candidate clicks Submit
+**When** all test cases (including hidden) run via Pyodide
 **Then**
-- Visible test case results are displayed within 5 s (p95)
-- stdout and stderr are shown in the output panel
-- Execution time and memory usage are displayed
-- Hidden test cases are NOT revealed during Run (only on final Submit)
+- Results sent to `/api/test/submit`
+- Score computed server-side from the results payload
+- Submission stored in `submissions`; speed metrics in `speed_metrics`
 
-### AC-06: Session Auto-Submits on Timer Expiry
-
-**Given** the candidate's session timer reaches zero  
-**When** the timer fires (client) or the server cron detects expiry  
+### AC-05: Session Auto-Submits on Timer Expiry
+**Given** the candidate's timer reaches zero
 **Then**
-- All open (non-final) submissions for the session are marked `is_final=true`
-- `candidate_sessions.status` is set to `timed_out`
-- Candidate is redirected to a "Time's Up" confirmation page
-- Admin monitoring dashboard updates status within 90 seconds
+- All unsubmitted questions are submitted without test results
+- `/api/test/session/:id/complete` is called
+- Candidate is redirected to completion page
+- `candidate_sessions.status = 'completed'`
 
-### AC-07: Admin Views Submission Detail
-
-**Given** the admin selects a completed session  
-**When** they open a submission  
+### AC-06: Admin Views Typing Replay
+**Given** a session has completed submissions
+**When** admin opens the playback page
 **Then**
-- They see: submitted code, language, stdout, stderr, compile output
-- Score breakdown per test case is visible
-- Speed metrics (CPM, WPM, paste count, idle periods) are displayed
-- Full audit event timeline for the session is accessible
+- Keystroke snapshots replay in Monaco editor
+- Slider moves through snapshots chronologically
+- Paste events are marked with yellow indicators
+- Metrics (CPM, paste count, WPM) displayed in sidebar
 
-### AC-08: RLS Isolates Candidate Data
-
-**Given** two candidates (A and B) are in the same round  
-**When** candidate A makes a direct Supabase API call with their JWT  
+### AC-07: CSV Export is Correct
+**Given** a round has completed sessions
+**When** admin clicks Export All
 **Then**
-- They cannot read candidate B's `submissions` rows
-- They cannot read candidate B's `candidate_sessions` row
-- They cannot read `speed_metrics` for any submission
-- They cannot read `audit_logs`
-
-### AC-09: Results Export
-
-**Given** the admin opens a completed round  
-**When** they click "Export CSV"  
-**Then**
-- A CSV downloads with columns: candidate email, question title, score, status, CPM, paste count, submission time
-- All candidates in the round are included
-- Hidden test case results are included in admin export
+- CSV downloads with Name, Email, College, RollNo, Branch, Status, Score, CompletedAt columns
+- All candidates included
+- "Export Finalized" filters to candidates whose score ≥ cutoff_score
 
 ---
 
-## 5. Performance Goals
+## 4. Performance Goals
 
-| Metric | Target | Measurement Method |
-|--------|--------|--------------------|
-| LCP (Largest Contentful Paint) | < 2.0 s | Vercel Web Analytics / Lighthouse |
-| API P50 response time | < 150 ms | Vercel Function logs |
-| API P95 response time | < 400 ms | Vercel Function logs |
-| API P99 response time | < 800 ms | Vercel Function logs |
-| Code execution round-trip (P95) | < 5 s | Custom metric: submit → result |
-| Concurrent sessions without degradation | 100 | K6 load test (see below) |
-| Supabase Realtime event latency | < 500 ms | Manual timing in admin dashboard |
-| Session heartbeat response | < 200 ms | API logs |
-| Judge0 cold start | < 2 s | Fly.io metrics; keep at least 1 machine warm |
+| Metric | Target | Method |
+|--------|--------|--------|
+| API p95 response time | < 200 ms | Server logs |
+| Pyodide Python execution (p95) | < 5 s | Browser performance API |
+| Static frontend LCP | < 1.5 s | Lighthouse / WebPageTest |
+| Concurrent candidates (single $10 VPS) | 200+ without degradation | Load test (K6) |
+| Concurrent candidates (Nginx + 3 Node instances) | 1000+ | Load test |
+| Session status poll latency | < 10 s for disqualification to take effect | Manual test |
 
 **Load Test Scenario (K6):**
 ```
-Ramp to 100 virtual users over 2 min
-Each VU: start session → submit 5 Round 1 answers → complete session
+Ramp to 200 virtual users over 2 minutes
+Each VU: register → start session → submit 3 questions → complete
 Duration: 10 min sustained
 Success criteria:
   - Error rate < 0.1%
-  - P95 end-to-end session time < 60 s
+  - P95 end-to-end < 5 s
   - No DB connection pool exhaustion
 ```
 
 ---
 
-## 6. Accessibility Goals
+## 5. Accessibility Goals
 
-| Requirement | Standard | Tool |
-|-------------|----------|------|
-| Keyboard navigation — all interactive elements | WCAG 2.1 AA (2.1.1) | Manual + axe-core |
-| Color contrast — text on background | WCAG 2.1 AA (1.4.3) ≥ 4.5:1 | axe-core, Colour Contrast Analyser |
-| Focus indicators visible | WCAG 2.1 AA (2.4.7) | Manual |
-| Form labels and error messages | WCAG 2.1 AA (1.3.1, 3.3.1) | axe-core |
-| Timer announces changes (ARIA live region) | WCAG 2.1 AA (4.1.3) | Screen reader test (NVDA/VoiceOver) |
-| Monaco editor keyboard accessibility | Best-effort (Monaco limitation) | Document workaround in help text |
-| ARIA roles on dynamic content | WCAG 2.1 AA (4.1.2) | axe-core |
-
-**Note on Monaco Editor:** The Monaco editor has known accessibility limitations. The platform must provide a plain `<textarea>` fallback for users who cannot use Monaco, with a clear toggle. This does not affect grading.
+| Requirement | Standard |
+|-------------|----------|
+| Keyboard navigation — all interactive elements | WCAG 2.1 AA |
+| Color contrast — text on background | ≥ 4.5:1 (WCAG 1.4.3) |
+| Focus indicators visible | WCAG 2.4.7 |
+| Form labels and error messages | WCAG 1.3.1, 3.3.1 |
+| Monaco editor keyboard accessibility | Best-effort; documented limitation |
 
 ---
 
-## 7. Compliance Goals
+## 6. Compliance Goals
 
-### GDPR (applicable if serving EU candidates)
+### GDPR (if serving EU candidates)
 
 | Obligation | Implementation |
 |------------|---------------|
-| Lawful basis | Consent collected at invitation acceptance; documented in privacy notice |
-| Data minimization | Only name, email, and assessment data stored — no unnecessary PII |
-| Right to access | Admin can export candidate's own data on request |
-| Right to erasure | `DELETE /api/admin/candidates/:id` removes all rows; documented in runbook |
-| Data retention | Auto-delete audit logs after 90 days; configurable |
-| Sub-processor disclosure | Supabase (EU region), Vercel, Fly.io listed in Data Processing Agreement |
-| Breach notification | Sentry alerts trigger 72-hour reporting window in runbook |
+| Data minimization | Only name, email, college, roll, branch, and assessment data stored |
+| Right to erasure | `DELETE /api/admin/sessions/:id` removes all candidate data |
+| Right to access | Admin can export candidate data via CSV export |
+| Sub-processor disclosure | Supabase (EU region available), any VPS provider |
 
-### General Security Compliance
+### Security
 
-| Standard | Scope |
-|----------|-------|
-| OWASP Top 10 | Mitigated in implementation (see implementation.md §4) |
-| TLS 1.3 | Enforced by Vercel and Fly.io |
-| Secrets management | No secrets in source code; all via env vars / Vercel secrets |
-| Dependency scanning | Dependabot + `npm audit` in CI |
+| Standard | Implementation |
+|----------|---------------|
+| OWASP Top 10 | No raw SQL; parameterized queries via Supabase SDK; rate limiting; CORS |
+| TLS | Enforced by Nginx or Cloudflare in front of Fastify |
+| Secrets management | `.env` file never committed; service role key server-side only |
+| Dependency scanning | `npm audit` in CI |
 
 ---
 
-## 8. Assumptions & Constraints
+## 7. Assumptions & Constraints
 
 | Item | Detail |
 |------|--------|
-| **Auth provider** | Supabase Auth is the sole auth provider; no custom auth server |
-| **Database** | Supabase PostgreSQL; no additional database (Redis, etc.) for MVP |
-| **Code execution** | Judge0 CE self-hosted; no fallback to third-party Judge0 API in production (vendor lock avoidance) |
-| **Sandboxing approach** | `isolate` within Judge0; no additional VM-level isolation for MVP |
-| **Browser requirement** | Candidates must use Chrome 110+, Firefox 115+, or Edge 110+; fullscreen API required |
-| **Network** | Candidates assumed to have stable broadband; no offline mode |
-| **Language runtimes** | Fixed set (C, C++, Python 3, JS, Java, Go); adding more requires Judge0 image rebuild |
-| **Team size** | 3–5 engineers (1 full-stack lead, 1–2 frontend, 1 backend/infra) |
-| **Deployment model** | Cloud-hosted (Vercel + Supabase Cloud + Fly.io); no on-premise for V1 |
-| **Assessment scale** | Up to 100 concurrent candidates; above this requires Judge0 horizontal scaling |
-| **Admin count** | Small number of admins (< 20); no admin permission tiers in V1 |
-| **Email delivery** | Supabase SMTP for magic links and invitations; custom SMTP recommended for production > 100 emails/hour |
+| **Auth provider** | Supabase Auth for admin; session tokens for candidates |
+| **Database** | Supabase PostgreSQL; no additional database (Redis, etc.) |
+| **Code execution** | Pyodide (browser WASM); Python 3 only; no server-side sandbox |
+| **Browser requirement** | Chrome 110+, Firefox 115+, Edge 110+; fullscreen API required |
+| **Network** | Candidates require internet for Pyodide CDN load (~10 MB first visit) |
+| **Deployment model** | Any VPS or cloud VM; no platform lock-in |
+| **Assessment scale** | 200+ concurrent candidates on a single server; scale by adding Node.js instances |
+| **Admin count** | Small number of admins (< 20); single admin role, no permission tiers |

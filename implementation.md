@@ -1,6 +1,6 @@
-# CodeAssess — Implementation Guide
+# Assessment Platform — Implementation Guide
 
-> Authoritative technical reference for the development team. Covers architecture decisions, data model, data flows, security controls, API surface, key algorithms, and the permissions model.
+> Authoritative technical reference for the development team. Covers architecture decisions, data model, data flows, security controls, API surface, and key algorithms.
 
 ---
 
@@ -22,264 +22,199 @@
 
 | Component | Technology | Responsibility |
 |-----------|-----------|----------------|
-| **Web App** | Next.js 14 (App Router) | Admin panel, candidate portal, API routes |
-| **Auth Service** | Supabase Auth | JWT issuance, OAuth, magic links, session refresh |
-| **Database** | Supabase PostgreSQL 15 | All application state; RLS for row-level access control |
-| **Realtime Bus** | Supabase Realtime | Push live session/submission updates to admin dashboard |
-| **Edge Functions** | Supabase Edge Functions (Deno) | Scoring, audit recording, session enforcement |
-| **Code Executor** | Judge0 CE (Fly.io, Docker) | Isolated multi-language code execution |
-| **Object Storage** | Supabase Storage | Exported reports, question assets |
-| **CDN / Hosting** | Vercel | Next.js deployment, edge caching, preview environments |
-| **Monitoring** | Sentry + Vercel Analytics | Error capture, performance tracking |
+| **API Server** | Node.js 20 + Fastify 4 | REST API + static file serving |
+| **Frontend** | Vanilla HTML + CSS + JS | Admin panel, candidate portal (no framework) |
+| **Auth Service** | Supabase Auth | Google OAuth + Magic Link; JWT issuance |
+| **Database** | Supabase PostgreSQL 15 | All application state; Row Level Security |
+| **Code Executor** | Pyodide (browser WASM) | Python 3 execution in the browser; Web Worker |
+| **Deployment** | Any VPS / Docker / Nginx | No platform dependency |
 
-### 1.2 Service Dependency Graph
+### 1.2 Directory Structure
+
+```
+assessment-platform/
+├── backend/
+│   ├── server.js                 # Fastify app — registers all plugins and routes
+│   ├── lib/
+│   │   ├── db.js                 # Supabase service-role client + makeUserClient()
+│   │   └── scoring.js            # normalizeOutput, computeDerivedMetrics
+│   ├── middleware/
+│   │   └── auth.js               # requireAdmin preHandler
+│   ├── routes/
+│   │   ├── auth.js               # GET /api/auth/user
+│   │   ├── admin/
+│   │   │   ├── rounds.js         # Full CRUD + publish/pause/export
+│   │   │   ├── questions.js      # CRUD with test_cases replace
+│   │   │   └── sessions.js       # GET / DELETE / disqualify
+│   │   └── test/
+│   │       ├── rounds.js         # GET /api/test/rounds (public)
+│   │       ├── register.js       # POST register + POST start
+│   │       ├── questions.js      # GET questions (token-gated)
+│   │       ├── submit.js         # POST submit (score from Pyodide results)
+│   │       └── session.js        # complete / event / status
+│   ├── package.json
+│   └── .env.example
+│
+└── frontend/
+    ├── css/app.css               # Full design system (CSS custom properties, dark theme)
+    ├── js/
+    │   ├── api.js                # Centralized fetch wrapper + all endpoint methods
+    │   ├── utils.js              # Toast, modal, confirm, formatTime, badges, DOM helpers
+    │   └── pyodide-worker.js     # Web Worker: runs Python code via Pyodide WASM
+    ├── index.html                # Root redirect (admin → /admin/, other → /test/)
+    ├── login.html                # Admin login (Supabase OAuth + magic link)
+    ├── admin/
+    │   ├── index.html            # Dashboard: stats + rounds list
+    │   ├── round.html            # Round detail: questions tab + sessions tab
+    │   └── playback.html         # Typing replay: Monaco viewer + slider
+    └── test/
+        ├── index.html            # Candidate landing: published rounds grid
+        ├── entry.html            # Rules + registration form
+        ├── exam.html             # Exam: Monaco + Pyodide + anti-cheat
+        └── complete.html         # Submission confirmed / disqualified
+```
+
+### 1.3 Request Flow
 
 ```
 Browser
   │
-  ├── Next.js App (Vercel)
-  │     ├── /admin/*       → Supabase DB (RLS: admin role)
-  │     │                  → Supabase Realtime (subscribe to sessions)
-  │     ├── /assess/*      → Supabase DB (RLS: candidate role)
-  │     │                  → Supabase Auth (JWT validation)
-  │     └── /api/*
-  │           ├── /api/execute  → Judge0 CE (Fly.io)
-  │           ├── /api/admin/*  → Supabase DB + Storage
-  │           └── /api/sessions → Supabase Edge Functions
+  ├── GET /admin/index.html   → Fastify @fastify/static serves frontend/admin/index.html
+  ├── GET /js/api.js          → serves frontend/js/api.js
   │
-  ├── Supabase Auth          (OAuth, magic link, JWT)
-  ├── Supabase PostgreSQL    (primary data store)
-  ├── Supabase Realtime      (WebSocket → admin dashboard)
-  ├── Supabase Edge Functions
-  │     ├── submission-scorer          (called after final submit)
-  │     ├── audit-event-recorder       (called on every client event)
-  │     └── session-timeout-enforcer   (cron: every 60 s)
-  └── Judge0 CE (Fly.io)
-        └── isolate sandbox (per submission)
-```
-
-### 1.3 Directory Structure (Next.js App)
-
-```
-codeassess/
-├── app/
-│   ├── (auth)/
-│   │   └── login/page.tsx
-│   ├── admin/
-│   │   ├── layout.tsx            # AdminGuard: redirect if not admin
-│   │   ├── rounds/page.tsx
-│   │   ├── rounds/[id]/page.tsx
-│   │   ├── monitor/[roundId]/page.tsx
-│   │   └── results/[roundId]/page.tsx
-│   ├── assess/
-│   │   ├── layout.tsx            # FullscreenGuard, SessionGuard
-│   │   ├── [roundId]/page.tsx    # entry / instructions
-│   │   ├── [roundId]/r1/page.tsx # Round 1 output prediction
-│   │   └── [roundId]/r2/page.tsx # Round 2 live coding
-│   └── api/
-│       ├── admin/
-│       ├── rounds/
-│       ├── submissions/
-│       ├── sessions/
-│       └── execute/
-├── components/
-│   ├── admin/                    # AdminTable, SessionMonitor, etc.
-│   ├── assess/                   # CodeEditor, TimerBar, ViolationBanner
-│   └── ui/                       # shadcn/ui re-exports
-├── lib/
-│   ├── supabase/
-│   │   ├── client.ts             # browser Supabase client
-│   │   ├── server.ts             # server-side client (service role)
-│   │   └── middleware.ts         # session refresh in Next.js middleware
-│   ├── judge0/
-│   │   ├── client.ts             # Judge0 API wrapper
-│   │   └── languages.ts          # language ID map
-│   ├── scoring/                  # scoring algorithms
-│   ├── metrics/                  # speed metric calculators
-│   └── anti-cheat/               # event handlers, violation logic
-├── supabase/
-│   ├── migrations/               # numbered SQL migration files
-│   ├── seeds/                    # dev seed data
-│   └── functions/                # Edge Function source
-│       ├── submission-scorer/
-│       ├── audit-event-recorder/
-│       └── session-timeout-enforcer/
-├── judge0/
-│   ├── docker-compose.yml
-│   └── judge0.conf
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-└── types/
-    └── supabase.ts               # auto-generated from schema
+  ├── GET /api/admin/rounds   → Fastify route handler
+  │     requireAdmin middleware:
+  │       Authorization: Bearer <token>
+  │       → supabase.auth.getUser(token)
+  │       → users.role must be 'admin'
+  │     → db.from('rounds').select(...)
+  │     → JSON response
+  │
+  └── POST /api/test/submit   → No auth middleware
+        body.session_token → verify in candidate_sessions
+        → score from body.test_results
+        → INSERT submissions
+        → INSERT speed_metrics
+        → JSON response
 ```
 
 ---
 
 ## 2. Data Model
 
-### 2.1 Entity Relationship Diagram (Text)
+### 2.1 Key Tables
 
 ```
 users
-  ┌───────────────────────────────────────────────┐
-  │ id            uuid PK default gen_random_uuid()│
-  │ email         text UNIQUE NOT NULL             │
-  │ full_name     text                             │
-  │ role          user_role NOT NULL  ('admin'|    │
-  │               'candidate')                     │
-  │ avatar_url    text                             │
-  │ created_at    timestamptz DEFAULT now()        │
-  │ updated_at    timestamptz DEFAULT now()        │
-  └───────────────────────────────────────────────┘
-         │1
-         │
-         │∞
-  ┌──────────────────────────────────────────────────────────────────┐
-  │ rounds                                                           │
-  │ id                uuid PK                                        │
-  │ title             text NOT NULL                                  │
-  │ description       text                                           │
-  │ type              round_type NOT NULL  ('output_prediction'|     │
-  │                   'live_coding')                                 │
-  │ duration_minutes  int NOT NULL  CHECK (duration_minutes > 0)    │
-  │ allowed_languages int[]   -- Judge0 language IDs (R2 only)       │
-  │ pass_score        int DEFAULT 0  -- min score to pass            │
-  │ is_published      bool DEFAULT false                             │
-  │ is_active         bool DEFAULT false                             │
-  │ created_by        uuid REFERENCES users(id)                      │
-  │ starts_at         timestamptz                                    │
-  │ ends_at           timestamptz                                    │
-  │ created_at        timestamptz DEFAULT now()                      │
-  │ updated_at        timestamptz DEFAULT now()                      │
-  └──────────────────────────────────────────────────────────────────┘
-         │1                                      │1
-         │                                       │
-         │∞                                      │∞
-  ┌────────────────────────────────┐    ┌────────────────────────────────────┐
-  │ questions                       │    │ invitations                         │
-  │ id             uuid PK          │    │ id          uuid PK                 │
-  │ round_id       uuid FK rounds   │    │ round_id    uuid FK rounds          │
-  │ sequence_order int NOT NULL     │    │ email       text NOT NULL           │
-  │ title          text NOT NULL    │    │ token       text UNIQUE NOT NULL    │
-  │ description    text             │    │ status      invite_status           │
-  │ type           question_type    │    │             ('pending'|'accepted'|  │
-  │                ('output_pred'|  │    │             'expired')              │
-  │                'coding')        │    │ expires_at  timestamptz             │
-  │ code_snippet   text  -- R1      │    │ created_by  uuid FK users           │
-  │ expected_output text -- R1      │    │ created_at  timestamptz             │
-  │ starter_code   text  -- R2      │    └────────────────────────────────────┘
-  │ test_cases     jsonb -- R2      │
-  │ time_limit_s   int DEFAULT 5    │
-  │ memory_limit_mb int DEFAULT 128 │
-  │ points         int DEFAULT 10   │
-  │ created_at     timestamptz      │
-  └────────────────────────────────┘
-         │1
-         │
-         │∞
-  ┌──────────────────────────────────────────────────────────────────┐
-  │ candidate_sessions                                               │
-  │ id                    uuid PK                                    │
-  │ user_id               uuid FK users                             │
-  │ round_id              uuid FK rounds                             │
-  │ status                session_status NOT NULL                    │
-  │                        ('invited'|'started'|'completed'|         │
-  │                         'timed_out'|'disqualified')              │
-  │ started_at            timestamptz                                │
-  │ completed_at          timestamptz                                │
-  │ fullscreen_violations  int DEFAULT 0                             │
-  │ tab_switch_violations  int DEFAULT 0                             │
-  │ ip_address            text                                       │
-  │ user_agent            text                                       │
-  │ created_at            timestamptz DEFAULT now()                  │
-  │ UNIQUE (user_id, round_id)                                       │
-  └──────────────────────────────────────────────────────────────────┘
-         │1                        │1
-         │                         │
-         │∞                        │∞
-  ┌───────────────────────────┐   ┌───────────────────────────────────────┐
-  │ submissions               │   │ audit_logs                             │
-  │ id            uuid PK     │   │ id           uuid PK                   │
-  │ session_id    uuid FK     │   │ user_id      uuid FK users             │
-  │ question_id   uuid FK     │   │ session_id   uuid FK sessions (null ok)│
-  │ user_id       uuid FK     │   │ event_type   audit_event_type          │
-  │ code          text (R2)   │   │              ('session_start'|         │
-  │ language_id   int (R2)    │   │               'session_end'|           │
-  │ predicted_out text (R1)   │   │               'fullscreen_exit'|       │
-  │ judge0_token  text (R2)   │   │               'fullscreen_enter'|      │
-  │ status        sub_status  │   │               'tab_switch'|            │
-  │ stdout        text        │   │               'paste_detected'|        │
-  │ stderr        text        │   │               'submission'|            │
-  │ compile_out   text        │   │               'disqualified'|          │
-  │ time_ms       float       │   │               'admin_action')          │
-  │ memory_kb     int         │   │ event_data   jsonb                     │
-  │ score         int         │   │ ip_address   text                      │
-  │ is_final      bool        │   │ user_agent   text                      │
-  │ attempt_count int         │   │ created_at   timestamptz               │
-  │ submitted_at  timestamptz │   └───────────────────────────────────────┘
-  └───────────────────────────┘
-         │1
-         │
-         │0..1
-  ┌──────────────────────────────────────────────────────────────────┐
-  │ speed_metrics                                                    │
-  │ id                     uuid PK                                   │
-  │ submission_id          uuid FK submissions UNIQUE                │
-  │ session_id             uuid FK candidate_sessions                │
-  │ question_id            uuid FK questions                         │
-  │ total_keystrokes       int DEFAULT 0                             │
-  │ paste_count            int DEFAULT 0                             │
-  │ delete_count           int DEFAULT 0                             │
-  │ time_to_first_key_ms   int                                       │
-  │ total_active_time_ms   int                                       │
-  │ idle_periods           jsonb  -- [{start_ms, end_ms}, ...]       │
-  │ chars_per_minute       float  -- computed on save                │
-  │ wpm_equivalent         float  -- chars_per_minute / 5           │
-  │ keystroke_sample       jsonb  -- optional replay data (sampled)  │
-  │ created_at             timestamptz DEFAULT now()                 │
-  └──────────────────────────────────────────────────────────────────┘
+  id            uuid PK
+  email         text UNIQUE NOT NULL
+  full_name     text
+  role          text NOT NULL  ('admin' | 'candidate')
+  avatar_url    text
+  created_at    timestamptz
+
+rounds
+  id                uuid PK
+  title             text NOT NULL
+  description       text
+  round_type        text NOT NULL  ('live_coding' | 'output_prediction' | 'mcq')
+  duration_minutes  int NOT NULL
+  cutoff_score      int
+  is_published      bool DEFAULT false
+  is_active         bool DEFAULT false
+  created_at        timestamptz
+
+questions
+  id              uuid PK
+  round_id        uuid FK rounds
+  title           text NOT NULL
+  description     text
+  question_type   text  ('coding' | 'output_prediction')
+  points          int DEFAULT 100
+  starter_code    text
+  expected_output text
+  order_index     int DEFAULT 0
+  created_at      timestamptz
+
+test_cases
+  id               uuid PK
+  question_id      uuid FK questions
+  input            text
+  expected_output  text NOT NULL
+  is_hidden        bool DEFAULT false
+  points           int DEFAULT 0
+  order_index      int DEFAULT 0
+
+candidate_sessions
+  id               uuid PK
+  round_id         uuid FK rounds
+  user_id          uuid FK users (nullable — candidates may not have Supabase accounts)
+  session_token    text UNIQUE NOT NULL
+  candidate_name   text
+  candidate_email  text
+  college_name     text
+  roll_no          text
+  branch           text
+  status           text  ('registered' | 'started' | 'completed' | 'disqualified')
+  score            int
+  started_at       timestamptz
+  completed_at     timestamptz
+  created_at       timestamptz
+
+submissions
+  id           uuid PK
+  session_id   uuid FK candidate_sessions
+  question_id  uuid FK questions
+  user_id      uuid (nullable)
+  code         text
+  language_id  int DEFAULT 71  (Python 3)
+  status       text  ('pending' | 'accepted' | 'wrong_answer')
+  is_final     bool DEFAULT false
+  score        int
+  test_results jsonb  -- [{case_id, passed, stdout, stderr, score, ...}]
+  created_at   timestamptz
+
+speed_metrics
+  id                    uuid PK
+  submission_id         uuid FK submissions
+  session_id            uuid FK candidate_sessions
+  question_id           uuid FK questions
+  total_keystrokes      int DEFAULT 0
+  paste_count           int DEFAULT 0
+  delete_count          int DEFAULT 0
+  time_to_first_key_ms  int
+  total_active_time_ms  int DEFAULT 0
+  idle_periods          jsonb  -- [{start_ms, end_ms}]
+  chars_per_minute      float
+  wpm_equivalent        float
+  keystroke_sample      jsonb  -- typing replay: {startTime, snapshots, runEvents}
+  created_at            timestamptz
+
+audit_logs
+  id           uuid PK
+  session_id   uuid FK candidate_sessions
+  event_type   text  ('tab_switch' | 'fullscreen_exit' | 'window_blur' | 'tab_close' | 'timer_expired' | ...)
+  event_data   jsonb
+  created_at   timestamptz
 ```
 
-### 2.2 Enum Definitions
-
-```sql
-CREATE TYPE user_role         AS ENUM ('admin', 'candidate');
-CREATE TYPE round_type        AS ENUM ('output_prediction', 'live_coding');
-CREATE TYPE question_type     AS ENUM ('output_prediction', 'coding');
-CREATE TYPE session_status    AS ENUM ('invited', 'started', 'completed', 'timed_out', 'disqualified');
-CREATE TYPE submission_status AS ENUM ('pending', 'running', 'accepted', 'wrong_answer',
-                                        'time_limit_exceeded', 'memory_limit_exceeded',
-                                        'runtime_error', 'compile_error', 'internal_error');
-CREATE TYPE invite_status     AS ENUM ('pending', 'accepted', 'expired');
-CREATE TYPE audit_event_type  AS ENUM ('session_start', 'session_end', 'fullscreen_exit',
-                                        'fullscreen_enter', 'tab_switch', 'paste_detected',
-                                        'submission', 'disqualified', 'admin_action');
-```
-
-### 2.3 `test_cases` JSONB Schema (Round 2)
+### 2.2 Typing Replay Schema (`keystroke_sample` JSONB)
 
 ```json
-[
-  {
-    "id": "tc_1",
-    "input": "5\n3",
-    "expected_output": "8",
-    "is_hidden": false,
-    "points": 4
-  },
-  {
-    "id": "tc_2",
-    "input": "0\n0",
-    "expected_output": "0",
-    "is_hidden": true,
-    "points": 6
-  }
-]
+{
+  "startTime": 1720000000000,
+  "snapshots": [
+    { "t": 0,     "code": "# starter code", "trigger": "initial" },
+    { "t": 10000, "code": "def solve():\n  pass", "trigger": "periodic" },
+    { "t": 15000, "code": "def solve():\n  return 42", "trigger": "paste", "pastedContent": "return 42" },
+    { "t": 20000, "code": "def solve():\n  return 42", "trigger": "run" },
+    { "t": 25000, "code": "def solve():\n  return 42", "trigger": "submit" }
+  ],
+  "runEvents": [
+    { "t": 20000, "results": [{ "passed": true, "case_id": "...", "time_ms": 42 }] }
+  ]
+}
 ```
-
-Hidden test cases are never sent to the candidate; only visible cases are shown during "Run" actions. All cases (hidden + visible) are evaluated on final submission.
 
 ---
 
@@ -290,430 +225,294 @@ Hidden test cases are never sent to the candidate; only visible cases are shown 
 ```
 Admin Browser
   │
-  ├─ POST /api/admin/rounds          → DB: INSERT into rounds
-  ├─ POST /api/admin/rounds/:id/questions → DB: INSERT into questions
-  ├─ POST /api/admin/invitations     → DB: INSERT into invitations
-  │                                      → Email: send magic link per candidate
+  ├─ POST /api/admin/rounds               → INSERT INTO rounds
+  ├─ POST /api/admin/questions            → INSERT INTO questions + test_cases
   └─ POST /api/admin/rounds/:id/publish
-        → DB: UPDATE rounds SET is_published=true, is_active=true
-        → Realtime: broadcasts 'round_published' event
+        → UPDATE rounds SET is_published=true, is_active=true
 ```
 
-### 3.2 Candidate Starts a Session
+### 3.2 Candidate Registers and Starts
 
 ```
 Candidate Browser
   │
-  ├─ GET /assess/:roundId            → Check invitation token validity
-  │                                    → Check round is_active and within window
-  ├─ POST /api/rounds/:id/start
-  │     → DB: INSERT candidate_sessions (status='started', started_at=now())
-  │     → DB: INSERT audit_logs (event_type='session_start')
-  │     → Returns: session_id, expires_at (started_at + duration_minutes)
+  ├─ GET  /api/test/rounds                → SELECT published rounds
+  ├─ POST /api/test/:roundId/register
+  │     → INSERT candidate_sessions (status='registered', session_token=uuid())
+  │     → Returns: session_id, session_token
   │
-  └─ Client: enterFullscreen()       → logs 'fullscreen_enter' audit event
-             startCountdown()        → displays timer bar
-             loadQuestions()         → GET /api/rounds/:id/questions
-                                         (questions filtered by session validity)
+  └─ POST /api/test/:roundId/start
+        → Verify round is_published + is_active
+        → UPDATE candidate_sessions SET status='started', started_at=now()
+        → Returns: expires_at = started_at + duration_minutes
+        Client: requestFullscreen() → navigate to /test/exam.html
 ```
 
-### 3.3 Round 1 — Output Prediction Submission
+### 3.3 Exam: Run (Non-Final)
 
 ```
-Candidate types predicted output → clicks Submit
+Candidate writes Python code → clicks Run
 
-  Client
+Client (exam.html)
+  ├─ GET /api/test/:roundId/questions?token=...
+  │     → Returns visible test cases only (is_hidden=false)
   │
-  └─ POST /api/submissions
-       body: { session_id, question_id, predicted_output, speed_metrics_payload }
-       │
-       ├─ API route validates: session active, question belongs to round, within time
-       ├─ DB: INSERT submissions { predicted_output, status='pending' }
-       ├─ DB: INSERT speed_metrics { ...payload }
-       │
-       └─ Supabase Edge Function: submission-scorer
-             ├─ Fetch question.expected_output
-             ├─ Compare normalize(predicted_output) == normalize(expected_output)
-             ├─ DB: UPDATE submissions SET score, status='accepted'|'wrong_answer'
-             └─ DB: INSERT audit_logs (event_type='submission')
+  └─ Pyodide Web Worker
+        for each visible test case:
+          run code with stdin = tc.input
+          compare stdout to tc.expected_output
+        → Display results in output panel
+        → Record run event in replays[q.id]
 ```
 
-### 3.4 Round 2 — Live Coding Submission
+### 3.4 Exam: Submit (Final)
 
 ```
-Candidate writes code in Monaco → clicks Run (test) or Submit (final)
+Candidate clicks Submit → confirms dialog
 
-  ── RUN (non-final) ─────────────────────────────────────────────────────
-  Client
-  └─ POST /api/execute
-       body: { code, language_id, stdin, time_limit, memory_limit }
-       │
-       └─ API route → Judge0 POST /submissions?wait=false
-             │
-             ├─ Returns: { token }
-             └─ Client polls GET /api/execute/:token every 1 s
-                   → API route → Judge0 GET /submissions/:token
-                   → Returns: { status, stdout, stderr, time, memory }
-                   → Display result in output panel
-
-  ── SUBMIT (final) ──────────────────────────────────────────────────────
-  Client
-  └─ POST /api/submissions
-       body: { session_id, question_id, code, language_id,
-               is_final: true, speed_metrics_payload }
-       │
-       ├─ API route:
-       │   ├─ DB: INSERT submissions { code, language_id, status='pending', is_final=true }
-       │   ├─ DB: INSERT speed_metrics
-       │   └─ Enqueue: submission-scorer Edge Function
-       │
-       └─ Edge Function: submission-scorer
-             ├─ For each test_case in question.test_cases:
-             │     ├─ POST Judge0 /submissions { code, language_id, stdin=tc.input }
-             │     ├─ Wait for result (poll or wait=true)
-             │     └─ Compare stdout to tc.expected_output
-             ├─ Calculate score: sum(passed_cases * case.points)
-             ├─ DB: UPDATE submissions SET score, status, stdout, stderr, time_ms, memory_kb
-             └─ DB: INSERT audit_logs (event_type='submission')
+Client (exam.html)
+  ├─ GET /api/test/:roundId/questions?token=...&include_hidden=true
+  │     → Returns ALL test cases (visible + hidden)
+  │
+  ├─ Pyodide Web Worker
+  │     for each test case (including hidden):
+  │       run code with stdin = tc.input
+  │       compare stdout (normalized) to expected_output
+  │     → Results array: [{case_id, passed, score, stdout, ...}]
+  │
+  └─ POST /api/test/submit
+        body: {
+          session_token,
+          question_id,
+          code,
+          test_results: [...],   ← pre-computed by Pyodide
+          is_final: true,
+          speed_metrics: {...},
+          typing_replay: {...}
+        }
+        │
+        Server:
+          → Verify session active + not expired
+          → Compute score = sum(r.score for r in test_results)
+          → INSERT submissions
+          → INSERT speed_metrics (+ keystroke_sample = typing_replay)
+          → Returns: { submission_id, score, status }
 ```
 
-### 3.5 Speed Metric Tracking
+### 3.5 Anti-Cheat Event Flow
 
 ```
-Client (assess layout — invisible to candidate)
+Client (exam.html)
   │
-  ├─ On question load:
-  │     questionStartTime = Date.now()
-  │     firstKeystroke = null
-  │     metrics = { keystrokes:0, pastes:0, deletes:0, idleStart: null, idlePeriods:[] }
+  ├─ visibilitychange (document.hidden=true)
+  │     → autoSubmit('tab_switch')
   │
-  ├─ Monaco Editor events:
-  │     onDidChangeModelContent(e):
-  │         for each change:
-  │             if firstKeystroke == null: firstKeystroke = Date.now()
-  │             isDelete = change.text === ''
-  │             keystrokes++ (or deletes++)
-  │             resetIdleTimer()
+  ├─ fullscreenchange (no fullscreenElement)
+  │     → autoSubmit('fullscreen_exit')
   │
-  ├─ onPaste event (editor container):
-  │     pastes++
-  │     log audit event 'paste_detected' immediately
+  ├─ window blur
+  │     → autoSubmit('window_blur')
   │
-  ├─ Idle detection:
-  │     idleThreshold = 30_000 ms
-  │     idleTimer = setTimeout(() => {
-  │         idleStart = Date.now()
-  │     }, idleThreshold)
-  │     resetIdleTimer():
-  │         if idleStart: idlePeriods.push({start: idleStart, end: Date.now()})
-  │         clearTimeout; restart idleTimer
+  └─ autoSubmit(reason):
+        if already submitting or completed: return
+        POST /api/test/session/:id/event { event_type: reason }
+          → Server: INSERT audit_logs
+          → Server: UPDATE candidate_sessions SET status='disqualified' (for tab_switch, fullscreen_exit, etc.)
+        Submit all unsubmitted questions (without test results)
+        POST /api/test/session/:id/complete
+        document.exitFullscreen()
+        redirect to /test/complete.html
+```
+
+### 3.6 Speed Metric Tracking
+
+```
+Client (exam.html, per question)
+  │
+  ├─ Monaco editor.onDidChangeModelContent:
+  │     metrics[qid].keystrokes++
+  │     if !firstKey: firstKey = Date.now()
+  │
+  ├─ Monaco editor.onDidPaste:
+  │     metrics[qid].pastes++
+  │     navigator.clipboard.readText() → snapshot with pastedContent
+  │
+  ├─ Periodic snapshot (setInterval 10s):
+  │     if code changed since last snapshot:
+  │       replays[qid].snapshots.push({ t, code, trigger:'periodic' })
   │
   └─ On submit:
-       activeTime = Date.now() - questionStartTime - sum(idlePeriods.duration)
-       cpm = (totalKeystrokes / activeTime) * 60_000
-       payload = { total_keystrokes, paste_count, delete_count,
-                   time_to_first_key_ms, total_active_time_ms,
-                   idle_periods, chars_per_minute }
-       → included in POST /api/submissions body
-```
-
-### 3.6 Anti-Cheat Event Flow
-
-```
-Client (FullscreenGuard component, always mounted in assess layout)
-  │
-  ├─ On mount: document.addEventListener('fullscreenchange', handler)
-  │            document.addEventListener('visibilitychange', handler)
-  │
-  ├─ fullscreenchange (exit):
-  │     POST /api/sessions/:id/events { type: 'fullscreen_exit' }
-  │     → Edge Function: audit-event-recorder
-  │           DB: INSERT audit_logs
-  │           DB: UPDATE candidate_sessions SET fullscreen_violations++
-  │           if fullscreen_violations >= threshold:
-  │               DB: UPDATE sessions SET status='disqualified'
-  │               → push Realtime event to admin dashboard
-  │     Client: show warning overlay, re-enter fullscreen prompt
-  │
-  ├─ visibilitychange (hidden):
-  │     POST /api/sessions/:id/events { type: 'tab_switch' }
-  │     → same audit chain
-  │     DB: UPDATE candidate_sessions SET tab_switch_violations++
-  │
-  └─ Heartbeat (every 30 s):
-       POST /api/sessions/:id/heartbeat
-       → API route: verifies session not expired
-       → If expired: respond 403 → client auto-submits and ends session
-```
-
-### 3.7 Session Timeout Enforcement
-
-```
-Supabase Edge Function: session-timeout-enforcer
-  Schedule: every 60 seconds (pg_cron or Supabase cron)
-  │
-  └─ SELECT * FROM candidate_sessions
-         WHERE status = 'started'
-           AND started_at + (duration_minutes * interval '1 minute') < now()
-     │
-     For each expired session:
-       ├─ DB: UPDATE submissions SET is_final=true WHERE session_id = s.id AND is_final=false
-       ├─ DB: UPDATE candidate_sessions SET status='timed_out', completed_at=now()
-       ├─ DB: INSERT audit_logs (event_type='session_end', event_data={reason:'timeout'})
-       └─ Realtime: publish 'session_timed_out' to admin channel
+       idle_ms = sum of idle_periods durations
+       active_ms = Date.now() - startTime - idle_ms
+       payload = {
+         total_keystrokes, paste_count, delete_count,
+         time_to_first_key_ms, total_active_time_ms, idle_periods
+       }
+       → sent to POST /api/test/submit
 ```
 
 ---
 
 ## 4. Security Considerations
 
-### 4.1 Code Execution Sandboxing (Judge0 / isolate)
+### 4.1 Admin Authentication
 
 | Control | Implementation |
 |---------|---------------|
-| **Process isolation** | Each submission runs in a fresh `isolate` Linux container |
-| **Network disabled** | `DISABLE_NETWORK=true` in judge0.conf; no outbound calls |
-| **CPU time limit** | 5 s default (configurable per question) |
-| **Wall time limit** | 10 s (prevents sleep/infinite loops) |
-| **Memory limit** | 128 MB default (configurable per question) |
-| **Filesystem** | Read-only rootfs; isolated `/tmp` per submission |
-| **Privilege** | Runs as unprivileged user inside container |
-| **Stack size** | 64 MB default; fork bombs blocked |
-| **No exec** | System calls filtered via seccomp (Judge0 default) |
+| Token verification | `supabase.auth.getUser(token)` on every admin request |
+| Role enforcement | `users.role = 'admin'` checked server-side via service role client |
+| Service role key | Never sent to browser; only used in `backend/lib/db.js` |
+| CORS | Configured origin restriction via `@fastify/cors` |
 
-**Additional controls:**
-- Judge0 API is not publicly accessible; calls are proxied through Next.js API routes
-- API key required on all Judge0 calls (`X-Auth-Token` header)
-- Judge0 instance is on Fly.io private network, not exposed on public internet
+### 4.2 Candidate Session Security
 
-### 4.2 Authentication & Authorisation
+| Control | Implementation |
+|---------|---------------|
+| Session token | UUID v4 generated on registration; stored in `candidate_sessions.session_token` |
+| Token validation | Every candidate API call validates `session_token` against DB |
+| Session expiry | `started_at + duration_minutes * 60000` checked server-side on every request |
+| Duplicate final submit | 409 returned if `is_final=true` submission already exists for that question |
 
-| Mechanism | Detail |
-|-----------|--------|
-| **JWT validation** | Every API route calls `supabase.auth.getUser()` — validates Supabase-issued JWT |
-| **Role enforcement** | `users.role` checked server-side; admin routes 403 if role ≠ 'admin' |
-| **Row Level Security** | All tables have RLS enabled; policies enforce candidate isolation |
-| **Service Role** | Used only in Edge Functions and server-side API routes; never sent to client |
-| **Invitation token** | HMAC-signed, single-use, expiring (24 h); redeemed once on session start |
+### 4.3 Code Execution Security
 
-### 4.3 Key RLS Policies
-
-```sql
--- candidates can only read their own sessions
-CREATE POLICY "candidate_own_session"
-  ON candidate_sessions FOR SELECT
-  USING (auth.uid() = user_id);
-
--- candidates can only submit to their own active sessions
-CREATE POLICY "candidate_own_submission_insert"
-  ON submissions FOR INSERT
-  WITH CHECK (
-    auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1 FROM candidate_sessions cs
-      WHERE cs.id = session_id
-        AND cs.user_id = auth.uid()
-        AND cs.status = 'started'
-    )
-  );
-
--- admins have full read on everything
-CREATE POLICY "admin_full_read"
-  ON submissions FOR SELECT
-  USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- audit_logs: insert for own events only; admins read all
-CREATE POLICY "audit_insert_own"
-  ON audit_logs FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "audit_admin_read"
-  ON audit_logs FOR SELECT
-  USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
-  );
-```
+| Control | Implementation |
+|---------|---------------|
+| Sandbox | Browser WASM (Pyodide); sandboxed by browser process model |
+| Network isolation | WASM has no network access; Pyodide runs in a Web Worker |
+| Timeout | 15-second client-side timeout per execution; worker terminated and recreated |
+| No server exposure | Server never executes candidate code; only stores pre-computed results |
 
 ### 4.4 Anti-Cheat Measures
 
-| Measure | Implementation | Notes |
-|---------|---------------|-------|
-| **Fullscreen enforcement** | `document.documentElement.requestFullscreen()` on session start; `fullscreenchange` monitored | Cannot be programmatically prevented on all browsers; violations logged |
-| **Fullscreen exit threshold** | 3 violations → auto-disqualify (configurable per round) | Admin can override |
-| **Tab switch detection** | `document.visibilitychange` event listener | Captures alt-tab, new tab, dock switching |
-| **Tab switch threshold** | 5 violations → flag for admin review (configurable) | Does not auto-disqualify by default |
-| **Paste detection** | `paste` event on editor container; count logged | High paste-count relative to keystrokes = signal |
-| **DevTools detection** | `window.outerWidth - window.innerWidth > threshold` heuristic | Logged, not enforced (false positive risk) |
-| **Context menu** | Disabled in assess layout via CSS + event.preventDefault() | Reduces right-click copy options |
-| **Keyboard shortcut blocking** | Block Ctrl+U (view source), F12 in assess layout | Not reliable cross-browser; layered defense |
-| **Copy detection** | `copy` event listener; log content length (not content itself) | Privacy-preserving signal |
-| **Session heartbeat** | Client pings `/api/sessions/:id/heartbeat` every 30 s | Server validates session validity; dead heartbeat = timeout |
-| **IP logging** | Session start IP stored; flag changes mid-session | Detects session token sharing |
-| **Audit trail** | Every anti-cheat event → `audit_logs` with timestamp | Full post-hoc review capability |
+| Measure | Implementation |
+|---------|---------------|
+| Fullscreen enforcement | `requestFullscreen()` on entry; `fullscreenchange` → immediate disqualification |
+| Tab switch detection | `visibilitychange` → immediate disqualification |
+| Window blur | `window.blur` → immediate disqualification |
+| Paste detection | `editor.onDidPaste` → count + snapshot with pasted content |
+| Context menu | `oncontextmenu="return false"` on exam body |
+| DevTools shortcuts | `keydown` listener blocks `Ctrl+U`, `F12` |
+| Status polling | Client polls `/api/test/session/:id/status` every 10s for admin-initiated DQ |
 
-> **Note on extension blocking:** Browser extensions cannot be disabled programmatically from a web page. The recommended mitigation is to document the requirement in candidate instructions, use a dedicated browser profile, and rely on behavioral signals (paste frequency, typing speed anomalies) for detection.
-
-### 4.5 Input Validation and Injection Prevention
+### 4.5 Input Validation
 
 | Risk | Mitigation |
 |------|-----------|
 | SQL injection | Parameterised queries via Supabase SDK; no raw SQL from user input |
-| XSS | Next.js JSX auto-escaping; Content Security Policy header |
-| Code in editor | Sent to sandboxed Judge0 only; never eval'd by server |
-| SSRF | Judge0 URL is hardcoded env var; candidate cannot control execution target |
-| CORS | Next.js CORS policy; only app domain and Supabase allowed |
-| Rate limiting | Vercel Edge Middleware rate limits on `/api/execute` (10 req/min per user) |
-
-### 4.6 Audit Logging Strategy
-
-All audit events are written to `audit_logs` by the `audit-event-recorder` Edge Function. The function runs with the service role key (bypasses RLS) to ensure events are never lost. Candidates cannot modify or delete their own audit logs (no UPDATE/DELETE policy).
-
-Log retention: 90 days in hot storage (PostgreSQL); nightly export to Supabase Storage (JSON-L) for long-term archive.
+| XSS | All user content HTML-escaped in frontend JS (`escHtml()` helper) |
+| CORS | Configured allowed origin; `credentials: true` for cookie support |
+| Rate limiting | `@fastify/rate-limit`: 200 requests/minute/IP globally |
 
 ---
 
 ## 5. API Surface
 
-### Authentication
+### 5.1 Auth Header
 
-All endpoints (except `/api/auth/*`) require a valid Supabase JWT in the `Authorization: Bearer <token>` header. The Next.js middleware validates the token on every request via `supabase.auth.getUser()`.
+All admin routes require:
+```
+Authorization: Bearer <supabase_access_token>
+```
 
-### 5.1 Auth Endpoints
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/api/auth/callback` | Supabase OAuth redirect handler | None |
-| POST | `/api/auth/logout` | Invalidate session | Any authenticated |
+The `requireAdmin` preHandler:
+1. Extracts token from `Authorization` header
+2. Calls `supabase.auth.getUser(token)` with an anon-key client
+3. Looks up `users.role` with the service role client
+4. Returns 401/403 if invalid; attaches `request.user` if valid
 
 ### 5.2 Admin Endpoints
 
-| Method | Path | Request Body | Response | Notes |
-|--------|------|-------------|---------|-------|
-| GET | `/api/admin/rounds` | — | `Round[]` | All rounds |
-| POST | `/api/admin/rounds` | `CreateRoundDTO` | `Round` | Creates draft |
-| GET | `/api/admin/rounds/:id` | — | `Round` | With questions |
-| PUT | `/api/admin/rounds/:id` | `UpdateRoundDTO` | `Round` | |
-| DELETE | `/api/admin/rounds/:id` | — | `204` | Only if not active |
-| POST | `/api/admin/rounds/:id/publish` | — | `Round` | Sets is_published, is_active |
-| POST | `/api/admin/rounds/:id/pause` | — | `Round` | Sets is_active=false |
-| GET | `/api/admin/rounds/:id/questions` | — | `Question[]` | |
-| POST | `/api/admin/rounds/:id/questions` | `CreateQuestionDTO` | `Question` | |
-| PUT | `/api/admin/questions/:id` | `UpdateQuestionDTO` | `Question` | |
-| DELETE | `/api/admin/questions/:id` | — | `204` | |
-| POST | `/api/admin/invitations` | `{ round_id, emails: string[] }` | `Invitation[]` | Sends emails |
-| GET | `/api/admin/rounds/:id/sessions` | — | `SessionSummary[]` | Live + completed |
-| GET | `/api/admin/sessions/:id` | — | `SessionDetail` | Full session data |
-| GET | `/api/admin/sessions/:id/submissions` | — | `Submission[]` | With metrics |
-| GET | `/api/admin/sessions/:id/audit-logs` | — | `AuditLog[]` | Sorted by time |
-| POST | `/api/admin/sessions/:id/disqualify` | `{ reason: string }` | `Session` | |
-| GET | `/api/admin/rounds/:id/export` | `?format=csv\|pdf` | File download | Results export |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/auth/user` | Current admin profile |
+| GET | `/api/admin/rounds` | All rounds with session count |
+| POST | `/api/admin/rounds` | Create round |
+| GET | `/api/admin/rounds/:id` | Round + questions + test_cases |
+| PUT | `/api/admin/rounds/:id` | Update round fields |
+| DELETE | `/api/admin/rounds/:id` | Delete round |
+| POST | `/api/admin/rounds/:id/publish` | Set `is_published=true, is_active=true` |
+| POST | `/api/admin/rounds/:id/unpublish` | Set `is_published=false, is_active=false` |
+| POST | `/api/admin/rounds/:id/pause` | Set `is_active=false` |
+| GET | `/api/admin/rounds/:id/sessions` | Sessions with submissions |
+| GET | `/api/admin/rounds/:id/export` | CSV download (`?finalized=true` for cutoff filter) |
+| POST | `/api/admin/questions` | Create question + test_cases |
+| PUT | `/api/admin/questions/:id` | Update question (replaces test_cases) |
+| DELETE | `/api/admin/questions/:id` | Delete question + test_cases |
+| GET | `/api/admin/sessions/:id` | Session detail for playback (with speed_metrics.keystroke_sample) |
+| DELETE | `/api/admin/sessions/:id` | Delete session cascade |
+| POST | `/api/admin/sessions/:id/disqualify` | Set `status='disqualified'` |
 
-**`CreateRoundDTO`:**
+### 5.3 Public Test Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/test/rounds` | None | Published rounds |
+| POST | `/api/test/:roundId/register` | None | Register → `session_token` |
+| POST | `/api/test/:roundId/start` | `session_token` in body | Start timer → `expires_at` |
+| GET | `/api/test/:roundId/questions` | `?token=...` | Questions (visible TCs only unless `&include_hidden=true`) |
+| POST | `/api/test/submit` | `session_token` in body | Save submission + speed metrics |
+| GET | `/api/test/session/:id/status` | `?token=...` | Session status (for DQ poll) |
+| POST | `/api/test/session/:id/complete` | `session_token` in body | Mark completed, compute final score |
+| POST | `/api/test/session/:id/event` | `session_token` in body | Log audit event; auto-DQ on violations |
+
+### 5.4 Request / Response Examples
+
+**POST /api/test/:roundId/register**
 ```json
+// Request
 {
-  "title": "Backend Engineering — Round 1",
-  "description": "C output prediction round",
-  "type": "output_prediction",
-  "duration_minutes": 60,
-  "allowed_languages": null,
-  "pass_score": 60
+  "candidate_name": "Alice Kumar",
+  "candidate_email": "alice@example.com",
+  "college_name": "IIT Bombay",
+  "roll_no": "21CS001",
+  "branch": "Computer Science"
 }
-```
 
-**`CreateQuestionDTO` (Round 1):**
-```json
-{
-  "sequence_order": 1,
-  "title": "Pointer Arithmetic",
-  "description": "What is the output of the following C program?",
-  "type": "output_prediction",
-  "code_snippet": "#include<stdio.h>\nint main(){\n  int a=5,*p=&a;\n  printf(\"%d\",*p+1);\n}",
-  "expected_output": "6",
-  "points": 10
-}
-```
-
-**`CreateQuestionDTO` (Round 2):**
-```json
-{
-  "sequence_order": 1,
-  "title": "Two Sum",
-  "description": "Given an array of integers and a target, return indices of two numbers that add up to target.",
-  "type": "coding",
-  "starter_code": "def two_sum(nums, target):\n    pass",
-  "test_cases": [
-    { "id": "tc_1", "input": "4\n2 7 11 15\n9", "expected_output": "0 1", "is_hidden": false, "points": 5 },
-    { "id": "tc_2", "input": "3\n3 2 4\n6", "expected_output": "1 2", "is_hidden": true, "points": 5 }
-  ],
-  "time_limit_s": 2,
-  "memory_limit_mb": 256,
-  "points": 10
-}
-```
-
-### 5.3 Candidate Endpoints
-
-| Method | Path | Request Body | Response | Notes |
-|--------|------|-------------|---------|-------|
-| GET | `/api/rounds` | — | `Round[]` | Rounds with active invitation for auth user |
-| POST | `/api/rounds/:id/start` | `{ invitation_token }` | `SessionStart` | Creates session, returns session_id + expires_at |
-| GET | `/api/rounds/:id/session` | — | `SessionState` | Current session status |
-| GET | `/api/rounds/:id/questions` | — | `Question[]` | Questions for active session (no hidden test case answers) |
-| POST | `/api/submissions` | `SubmissionDTO` | `Submission` | Create submission |
-| GET | `/api/submissions/:id` | — | `Submission` | Own submissions only |
-| POST | `/api/sessions/:id/heartbeat` | — | `{ valid: bool, remaining_ms: int }` | Liveness check |
-| POST | `/api/sessions/:id/events` | `AuditEventDTO` | `204` | Log client-side events |
-| POST | `/api/sessions/:id/complete` | — | `Session` | Mark session complete |
-
-**`SubmissionDTO`:**
-```json
+// Response 201
 {
   "session_id": "uuid",
+  "session_token": "uuid",
+  "round_id": "uuid",
+  "already_registered": false
+}
+```
+
+**POST /api/test/submit**
+```json
+// Request
+{
+  "session_token": "uuid",
   "question_id": "uuid",
-  "code": "def two_sum(...):\n  ...",
-  "language_id": 71,
+  "code": "n = int(input())\nprint(n * 2)",
+  "test_results": [
+    { "case_id": "uuid", "passed": true, "stdout": "10", "score": 50, "time_ms": 12, "is_hidden": false, "expected_output": "10" },
+    { "case_id": "uuid", "passed": false, "stdout": "4", "score": 0, "time_ms": 8, "is_hidden": true, "expected_output": "8" }
+  ],
   "is_final": true,
   "speed_metrics": {
-    "total_keystrokes": 312,
+    "total_keystrokes": 42,
     "paste_count": 0,
-    "delete_count": 45,
-    "time_to_first_key_ms": 8200,
-    "total_active_time_ms": 720000,
-    "idle_periods": [{"start_ms": 120000, "end_ms": 180000}],
-    "chars_per_minute": 26.0
+    "delete_count": 5,
+    "time_to_first_key_ms": 3200,
+    "total_active_time_ms": 180000,
+    "idle_periods": []
+  },
+  "typing_replay": {
+    "startTime": 1720000000000,
+    "snapshots": [
+      { "t": 0, "code": "", "trigger": "initial" },
+      { "t": 15000, "code": "n = int(input())\nprint(n * 2)", "trigger": "periodic" }
+    ],
+    "runEvents": []
   }
 }
-```
 
-### 5.4 Code Execution Endpoints (Proxy)
-
-| Method | Path | Request Body | Response | Notes |
-|--------|------|-------------|---------|-------|
-| POST | `/api/execute` | `ExecuteDTO` | `{ token: string }` | Submits to Judge0 |
-| GET | `/api/execute/:token` | — | `ExecuteResult` | Poll for result |
-
-**`ExecuteDTO`:**
-```json
+// Response 201
 {
-  "source_code": "print('hello')",
-  "language_id": 71,
-  "stdin": "5\n3",
-  "cpu_time_limit": 2,
-  "memory_limit": 131072
-}
-```
-
-**`ExecuteResult`:**
-```json
-{
-  "status": { "id": 3, "description": "Accepted" },
-  "stdout": "hello\n",
-  "stderr": null,
-  "compile_output": null,
-  "time": "0.042",
-  "memory": 9068
+  "submission_id": "uuid",
+  "score": 50,
+  "status": "wrong_answer",
+  "test_results": [...]
 }
 ```
 
@@ -721,204 +520,95 @@ All endpoints (except `/api/auth/*`) require a valid Supabase JWT in the `Author
 
 ## 6. Key Algorithms
 
-### 6.1 Output Normalization (Round 1 Scoring)
+### 6.1 Output Normalization
 
-```typescript
-// lib/scoring/normalizeOutput.ts
-export function normalizeOutput(raw: string): string {
-  return raw
-    .trim()                          // strip leading/trailing whitespace
-    .replace(/\r\n/g, '\n')          // normalize line endings
-    .replace(/[ \t]+$/gm, '')        // strip trailing spaces per line
-    .toLowerCase();                  // case-insensitive comparison
-}
-
-export function scoreOutputPrediction(
-  predicted: string,
-  expected: string,
-  points: number
-): { score: number; correct: boolean } {
-  const correct = normalizeOutput(predicted) === normalizeOutput(expected);
-  return { score: correct ? points : 0, correct };
+```javascript
+// backend/lib/scoring.js
+export function normalizeOutput(raw) {
+  if (raw === null || raw === undefined) return ''
+  return String(raw)
+    .replace(/\r\n/g, '\n')   // normalize Windows line endings
+    .replace(/\r/g, '\n')     // normalize old Mac line endings
+    .trim()                   // strip leading/trailing whitespace
 }
 ```
 
-### 6.2 Multi-Test-Case Scoring (Round 2)
+### 6.2 Score Computation (Server-Side)
 
-```typescript
-// lib/scoring/scoreSubmission.ts
-interface TestResult {
-  caseId: string;
-  passed: boolean;
-  points: number;
-  stdout: string;
-  time_ms: number;
-  memory_kb: number;
-}
+```javascript
+// Server trusts client Pyodide results; computes total score server-side
+let finalScore = 0
+let finalStatus = 'pending'
 
-export async function scoreMultipleTestCases(
-  code: string,
-  languageId: number,
-  testCases: TestCase[],
-  judge0: Judge0Client
-): Promise<{ totalScore: number; results: TestResult[]; worstStatus: SubmissionStatus }> {
-
-  const results: TestResult[] = [];
-  let worstStatus: SubmissionStatus = 'accepted';
-
-  // Run all test cases in parallel (Judge0 handles concurrency)
-  const executions = await Promise.all(
-    testCases.map(tc =>
-      judge0.submitAndWait({
-        source_code: code,
-        language_id: languageId,
-        stdin: tc.input,
-        cpu_time_limit: tc.time_limit_s ?? 5,
-        memory_limit: (tc.memory_limit_mb ?? 128) * 1024,
-      })
-    )
-  );
-
-  for (let i = 0; i < testCases.length; i++) {
-    const tc = testCases[i];
-    const exec = executions[i];
-    const passed =
-      exec.status.description === 'Accepted' &&
-      normalizeOutput(exec.stdout ?? '') === normalizeOutput(tc.expected_output);
-
-    results.push({
-      caseId: tc.id,
-      passed,
-      points: passed ? tc.points : 0,
-      stdout: exec.stdout ?? '',
-      time_ms: parseFloat(exec.time ?? '0') * 1000,
-      memory_kb: exec.memory ?? 0,
-    });
-
-    if (!passed && exec.status.id !== 3) {
-      worstStatus = mapJudge0Status(exec.status.id);
-    }
-  }
-
-  const totalScore = results.reduce((sum, r) => sum + r.points, 0);
-  return { totalScore, results, worstStatus };
+if (Array.isArray(test_results) && test_results.length > 0) {
+  finalScore = test_results.reduce((sum, r) => sum + (r.score || 0), 0)
+  const allPassed  = test_results.every(r => r.passed)
+  const somePassed = test_results.some(r => r.passed)
+  finalStatus = allPassed ? 'accepted' : somePassed ? 'wrong_answer' : 'wrong_answer'
 }
 ```
 
-### 6.3 Speed Metrics Calculator
+### 6.3 Pyodide Test Case Execution (Browser)
 
-```typescript
-// lib/metrics/speedMetrics.ts
-export interface SpeedMetricsPayload {
-  total_keystrokes: number;
-  paste_count: number;
-  delete_count: number;
-  time_to_first_key_ms: number | null;
-  total_active_time_ms: number;
-  idle_periods: { start_ms: number; end_ms: number }[];
-}
-
-export function computeDerivedMetrics(payload: SpeedMetricsPayload) {
-  const netKeystrokes = payload.total_keystrokes - payload.delete_count;
-  const activeMinutes = payload.total_active_time_ms / 60_000;
-
-  const chars_per_minute =
-    activeMinutes > 0 ? netKeystrokes / activeMinutes : 0;
-
-  const wpm_equivalent = chars_per_minute / 5; // standard WPM definition
-
-  const total_idle_ms = payload.idle_periods.reduce(
-    (sum, p) => sum + (p.end_ms - p.start_ms), 0
-  );
-
-  const idle_fraction =
-    payload.total_active_time_ms + total_idle_ms > 0
-      ? total_idle_ms / (payload.total_active_time_ms + total_idle_ms)
-      : 0;
-
-  return {
-    chars_per_minute: Math.round(chars_per_minute * 10) / 10,
-    wpm_equivalent: Math.round(wpm_equivalent * 10) / 10,
-    total_idle_ms,
-    idle_fraction: Math.round(idle_fraction * 1000) / 1000,
-  };
+```javascript
+// frontend/js/pyodide-worker.js (Web Worker)
+for (const tc of testCases) {
+  // Redirect stdin, capture stdout/stderr
+  pyodide.runPython(`
+    import sys, io
+    _stdout = io.StringIO()
+    sys.stdin = io.StringIO(${JSON.stringify(tc.input || '')})
+    sys.stdout = _stdout
+  `)
+  pyodide.runPython(code)
+  const stdout = pyodide.runPython('_stdout.getvalue()') || ''
+  const got      = normalizeOutput(stdout)
+  const expected = normalizeOutput(tc.expected_output)
+  const passed   = got === expected
+  results.push({ case_id: tc.id, passed, stdout, score: passed ? tc.points : 0, ... })
 }
 ```
 
-### 6.4 Session Timer and Auto-Submit
+### 6.4 Speed Metrics Derived Values
 
-```typescript
-// lib/assess/sessionTimer.ts
-export class SessionTimer {
-  private expiresAt: Date;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
-
-  constructor(
-    expiresAt: Date,
-    private onTick: (remainingMs: number) => void,
-    private onExpire: () => void
-  ) {
-    this.expiresAt = expiresAt;
-  }
-
-  start() {
-    this.intervalId = setInterval(() => {
-      const remaining = this.expiresAt.getTime() - Date.now();
-      if (remaining <= 0) {
-        this.stop();
-        this.onExpire();   // triggers auto-submit + POST /api/sessions/:id/complete
-      } else {
-        this.onTick(remaining);
-        // Warn at 5 min and 1 min remaining
-        if (remaining <= 60_000 || remaining <= 300_000) {
-          // trigger warning UI
-        }
-      }
-    }, 1000);
-  }
-
-  stop() {
-    if (this.intervalId) clearInterval(this.intervalId);
-  }
+```javascript
+// backend/lib/scoring.js
+export function computeDerivedMetrics(m) {
+  const totalMs = m.total_active_time_ms || 0
+  const keys    = m.total_keystrokes || 0
+  const chars_per_minute = totalMs > 0
+    ? Math.round((keys / (totalMs / 60000)) * 10) / 10
+    : 0
+  const wpm_equivalent = Math.round(chars_per_minute / 5 * 10) / 10
+  return { chars_per_minute, wpm_equivalent }
 }
 ```
 
-### 6.5 Invitation Token Generation
+### 6.5 Auto-Submit Guard
 
-```typescript
-// lib/auth/invitationToken.ts
-import { createHmac, randomBytes } from 'crypto';
+```javascript
+// frontend/test/exam.html
+let hasCompleted  = false
+let isSubmitting  = false
 
-export function generateInvitationToken(
-  roundId: string,
-  email: string
-): string {
-  const nonce = randomBytes(16).toString('hex');
-  const payload = `${roundId}:${email}:${nonce}`;
-  const hmac = createHmac('sha256', process.env.NEXTAUTH_SECRET!)
-    .update(payload)
-    .digest('hex');
-  return Buffer.from(`${payload}:${hmac}`).toString('base64url');
+async function autoSubmit(reason) {
+  if (isSubmitting || hasCompleted) return  // prevent duplicate calls
+  isSubmitting = true
+  hasCompleted  = true
+
+  // 1. Log audit event
+  // 2. Submit all unsubmitted questions (code only, no results)
+  // 3. Complete session
+  // 4. Exit fullscreen + redirect
 }
 
-export function verifyInvitationToken(
-  token: string,
-  roundId: string,
-  email: string
-): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString('utf8');
-    const parts = decoded.split(':');
-    const [tRound, tEmail, tNonce, tHmac] = parts;
-    if (tRound !== roundId || tEmail !== email) return false;
-    const expected = createHmac('sha256', process.env.NEXTAUTH_SECRET!)
-      .update(`${tRound}:${tEmail}:${tNonce}`)
-      .digest('hex');
-    return expected === tHmac;   // timing-safe in production: use timingSafeEqual
-  } catch {
-    return false;
-  }
-}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) autoSubmit('tab_switch')
+})
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) autoSubmit('fullscreen_exit')
+})
+window.addEventListener('blur', () => autoSubmit('window_blur'))
 ```
 
 ---
@@ -934,47 +624,39 @@ export function verifyInvitationToken(
 | Publish / pause rounds | ✅ | ❌ |
 | Add / edit / delete questions | ✅ | ❌ |
 | View expected outputs / hidden test cases | ✅ | ❌ |
-| Invite candidates | ✅ | ❌ |
-| View own assigned rounds | ❌ | ✅ |
-| Start assessment session | ❌ | ✅ (invitation required) |
-| Submit code / answers | ❌ | ✅ (active session required) |
-| Run code (non-final) | ❌ | ✅ (active session required) |
-| View own submissions | ❌ | ✅ (after round ends or admin releases) |
-| View all submissions | ✅ | ❌ |
+| View published rounds | ✅ | ✅ |
+| Register and start assessment | ❌ | ✅ |
+| Submit code / answers | ❌ | ✅ (active session) |
+| Run code (non-final) | ❌ | ✅ (active session) |
 | View all sessions | ✅ | ❌ |
-| Monitor live sessions | ✅ | ❌ |
-| View audit logs | ✅ | ❌ |
-| Disqualify candidate | ✅ | ❌ |
-| Export results | ✅ | ❌ |
-| View own speed metrics | ❌ | ❌ (admin only) |
+| View typing replay | ✅ | ❌ |
 | View all speed metrics | ✅ | ❌ |
+| Disqualify candidate | ✅ | ❌ |
+| Delete session | ✅ | ❌ |
+| Export results CSV | ✅ | ❌ |
 
-### 7.2 API Endpoint Auth Requirements
+### 7.2 API Endpoint Auth
 
-| Endpoint Group | Required Role | Additional Check |
-|---------------|:------------:|-----------------|
-| `/api/admin/*` | `admin` | JWT valid |
-| `/api/rounds` (GET) | `candidate` | Has active invitation |
-| `/api/rounds/:id/start` | `candidate` | Round active, invitation valid, no existing session |
-| `/api/rounds/:id/questions` | `candidate` | Active session exists for this round |
-| `/api/submissions` (POST) | `candidate` | Session active, question belongs to session's round |
-| `/api/submissions/:id` (GET) | `candidate` | Own submission only |
-| `/api/execute` | `candidate` | Active session (rate limited) |
-| `/api/sessions/:id/heartbeat` | `candidate` | Own session only |
-| `/api/sessions/:id/events` | `candidate` | Own session only |
-| `/api/sessions/:id/complete` | `candidate` | Own active session only |
+| Endpoint | Required |
+|----------|----------|
+| `/api/auth/user` | Supabase JWT (any role) |
+| `/api/admin/*` | Supabase JWT + `role='admin'` |
+| `/api/test/rounds` | None |
+| `/api/test/:id/register` | None |
+| `/api/test/:id/start` | `session_token` in body |
+| `/api/test/:id/questions` | `session_token` in query string |
+| `/api/test/submit` | `session_token` in body |
+| `/api/test/session/:id/*` | `session_token` in body/query |
 
-### 7.3 Database RLS Summary
+### 7.3 Supabase RLS Summary
 
-| Table | Candidate READ | Candidate INSERT | Candidate UPDATE | Admin |
-|-------|:--------------:|:----------------:|:----------------:|:-----:|
-| `users` | Own row only | ❌ | Own row (name, avatar) | Full |
-| `rounds` | Assigned only | ❌ | ❌ | Full |
-| `questions` | Assigned round only (no expected_output) | ❌ | ❌ | Full |
-| `candidate_sessions` | Own rows only | Restricted¹ | ❌ | Full |
-| `submissions` | Own rows (post-release) | Own active session | ❌ | Full |
-| `speed_metrics` | ❌ | Own (via submission) | ❌ | Full |
-| `audit_logs` | ❌ | Own events only | ❌ | Full |
-| `invitations` | Own email only | ❌ | ❌ | Full |
+| Table | Public | Candidate (via service role API) | Admin (via service role API) |
+|-------|--------|----------------------------------|------------------------------|
+| `rounds` | Published rows (via public API) | ❌ direct | Full |
+| `questions` | Via session-gated API | ❌ direct | Full |
+| `candidate_sessions` | ❌ | Own row (via session token) | Full |
+| `submissions` | ❌ | Own rows (via session token) | Full |
+| `speed_metrics` | ❌ | ❌ | Full |
+| `audit_logs` | ❌ | Insert only (via event API) | Full |
 
-¹ Session creation is handled server-side via service role in `/api/rounds/:id/start`; candidates cannot directly INSERT into sessions.
+> All database operations from the backend use the **service role key**, which bypasses RLS. Access control is enforced at the Fastify middleware layer, not at the database level. RLS policies remain as a defense-in-depth layer.
