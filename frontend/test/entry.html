@@ -6,64 +6,97 @@
   <title>Assessment Entry — Rules &amp; Registration</title>
   <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
+<body style="background:var(--bg-950)">
 <div style="min-height:100vh;display:flex;flex-direction:column;">
+
   <!-- Nav -->
-  <nav style="background:var(--bg-800);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;gap:.75rem;">
+  <nav style="background:var(--bg-800);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;gap:.75rem;position:sticky;top:0;z-index:10;">
     <a href="/test/" class="btn btn-ghost btn-sm">&larr; Back</a>
-    <span style="font-weight:600;font-size:1rem" id="round-name">Loading...</span>
+    <div style="width:1px;height:1.25rem;background:var(--border);"></div>
+    <span style="font-weight:600;font-size:.9375rem;color:var(--text-100)" id="round-name">Loading...</span>
   </nav>
 
-  <main style="max-width:680px;margin:2rem auto;padding:0 1.5rem;width:100%">
-    <!-- Round info card -->
-    <div class="card mb-4" id="round-info">
-      <div class="flex items-center gap-3 mb-3">
+  <main style="max-width:680px;margin:2rem auto;padding:0 1.5rem 3rem;width:100%">
+
+    <!-- Round info -->
+    <div class="card mb-4" id="round-info" style="border-color:var(--border-light)">
+      <div class="flex items-center gap-3 flex-wrap">
         <div id="round-badges"></div>
-        <span class="text-sm text-muted" id="round-duration"></span>
+        <span class="badge badge-gray" id="round-duration"></span>
       </div>
-      <p class="text-sm" id="round-desc"></p>
+      <p class="text-sm mt-2" id="round-desc" style="line-height:1.6"></p>
     </div>
 
     <!-- Rules -->
     <div class="card mb-4">
-      <h3 class="mb-3">&#9888; Rules &amp; Guidelines</h3>
-      <ul style="list-style:none;display:flex;flex-direction:column;gap:.625rem">
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> The exam will run in <strong>fullscreen mode</strong>. Exiting fullscreen will immediately end your test.</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> <strong>Switching tabs</strong> or minimizing the window will disqualify you automatically.</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--red-400);flex-shrink:0">&#8226;</span> <strong>Do not use an AI assistant</strong> or search engine during the test.</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--amber-400);flex-shrink:0">&#8226;</span> All typing activity is recorded for malpractice review.</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--amber-400);flex-shrink:0">&#8226;</span> The timer starts as soon as you click "Enter Exam".</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--green-400);flex-shrink:0">&#8226;</span> You may use <strong>Python 3</strong> for coding questions (runs in browser).</li>
-        <li class="flex items-start gap-2 text-sm"><span style="color:var(--green-400);flex-shrink:0">&#8226;</span> <strong>Use incognito/private mode</strong> for the cleanest experience.</li>
+      <div class="flex items-center gap-2 mb-3">
+        <span style="font-size:1rem;">&#9888;&#65039;</span>
+        <h3>Rules &amp; Guidelines</h3>
+      </div>
+      <ul class="rule-list">
+        <li class="rule-item">
+          <span class="rule-icon danger">&#10007;</span>
+          <span class="rule-text">The exam runs in <strong>fullscreen mode</strong>. Exiting fullscreen will immediately end your test.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon danger">&#10007;</span>
+          <span class="rule-text"><strong>Switching tabs</strong> or minimizing the window disqualifies you automatically.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon danger">&#10007;</span>
+          <span class="rule-text"><strong>Do not use AI assistants</strong> (ChatGPT, Copilot, etc.) or search engines during the test.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon warning">&#9679;</span>
+          <span class="rule-text">All typing activity and paste events are <strong>recorded</strong> for malpractice review.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon warning">&#9679;</span>
+          <span class="rule-text">The <strong>timer starts immediately</strong> when you click "Enter Exam". Ensure you have uninterrupted time.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon success">&#10003;</span>
+          <span class="rule-text">Coding questions use <strong>Python 3</strong> executed locally in your browser via WebAssembly.</span>
+        </li>
+        <li class="rule-item">
+          <span class="rule-icon success">&#10003;</span>
+          <span class="rule-text">Use <strong>incognito / private browsing mode</strong> for the best experience and to avoid extension interference.</span>
+        </li>
       </ul>
     </div>
 
-    <!-- Incognito checkbox -->
-    <div class="card mb-4">
-      <label class="toggle-wrap" style="cursor:pointer;gap:.75rem">
+    <!-- Incognito confirmation -->
+    <div class="card mb-4" style="border-color:var(--border-light)">
+      <label class="toggle-wrap" style="gap:.875rem;cursor:pointer">
         <span class="toggle" id="incognito-toggle"></span>
-        <span class="text-sm">I confirm I am using <strong>incognito / private browsing mode</strong></span>
+        <div>
+          <div style="font-size:.875rem;font-weight:500;color:var(--text-100);">I am using incognito / private browsing mode</div>
+          <div style="font-size:.8125rem;color:var(--text-400);margin-top:.125rem">Required to prevent extension interference during the exam</div>
+        </div>
       </label>
     </div>
 
     <!-- Registration form -->
     <div class="card" id="reg-card">
-      <h3 class="mb-4">Register to Take Test</h3>
+      <div class="flex items-center gap-2 mb-4">
+        <span style="font-size:1rem;">&#128100;</span>
+        <h3>Candidate Registration</h3>
+      </div>
       <form id="form-register">
         <div class="grid-2">
           <div class="form-group">
             <label>Full Name *</label>
-            <input type="text" class="input" name="candidate_name" required placeholder="Your full name">
+            <input type="text" class="input" name="candidate_name" required placeholder="Your full name" autocomplete="name">
           </div>
           <div class="form-group">
             <label>Email Address *</label>
-            <input type="email" class="input" name="candidate_email" required placeholder="you@example.com">
+            <input type="email" class="input" name="candidate_email" required placeholder="you@example.com" autocomplete="email">
           </div>
         </div>
         <div class="grid-2">
           <div class="form-group">
             <label>College / Institution</label>
-            <input type="text" class="input" name="college_name" placeholder="Your college">
+            <input type="text" class="input" name="college_name" placeholder="Your college or university">
           </div>
           <div class="form-group">
             <label>Roll Number</label>
@@ -72,15 +105,18 @@
         </div>
         <div class="form-group">
           <label>Branch / Department</label>
-          <input type="text" class="input" name="branch" placeholder="e.g. Computer Science">
+          <input type="text" class="input" name="branch" placeholder="e.g. Computer Science Engineering">
         </div>
 
-        <div style="background:rgba(79,70,229,0.08);border:1px solid var(--indigo-600);border-radius:var(--radius);padding:.875rem;margin-top:1rem;font-size:.875rem;">
-          <strong>Ready to begin?</strong> Clicking "Enter Exam" will start your timer and request fullscreen.
-          Make sure you have enough time to complete the exam.
+        <div class="info-box warning mt-4" style="display:flex;align-items:flex-start;gap:.75rem;">
+          <span style="flex-shrink:0;font-size:1rem;margin-top:.1rem">&#9200;</span>
+          <div>
+            <strong style="color:var(--text-100)">Ready to begin?</strong>
+            <span style="color:var(--text-300)"> Clicking "Enter Exam" starts your timer and opens fullscreen mode. You cannot pause once started.</span>
+          </div>
         </div>
 
-        <button type="submit" class="btn btn-primary w-full mt-4" id="btn-enter" style="font-size:1rem;padding:.75rem">
+        <button type="submit" class="btn btn-primary w-full btn-lg mt-4" id="btn-enter">
           Enter Exam &rarr;
         </button>
       </form>
@@ -98,14 +134,12 @@ if (!roundId) { window.location.replace('/test/'); throw 0 }
 
 let incognitoConfirmed = false
 
-// Toggle incognito
 const toggle = document.getElementById('incognito-toggle')
 toggle.addEventListener('click', () => {
   toggle.classList.toggle('on')
   incognitoConfirmed = toggle.classList.contains('on')
 })
 
-// Load round info
 async function loadRound() {
   try {
     const rounds = await api.getPublicRounds()
@@ -116,14 +150,14 @@ async function loadRound() {
     document.getElementById('round-duration').textContent = `${round.duration_minutes} minutes`
     document.getElementById('round-badges').innerHTML = roundTypeBadge(round.round_type)
     document.getElementById('round-desc').textContent = round.description || ''
+    document.title = `${round.title} — Entry`
   } catch (e) { toastError('Failed to load round info') }
 }
 
-// Register + start
 document.getElementById('form-register').addEventListener('submit', async e => {
   e.preventDefault()
   if (!incognitoConfirmed) {
-    alert('Please confirm you are using incognito / private mode.')
+    alert('Please confirm you are using incognito / private mode before proceeding.')
     return
   }
 
@@ -133,7 +167,6 @@ document.getElementById('form-register').addEventListener('submit', async e => {
   btn.textContent = 'Registering...'
 
   try {
-    // Register candidate
     const reg = await api.registerCandidate(roundId, {
       candidate_name:  fd.get('candidate_name'),
       candidate_email: fd.get('candidate_email'),
@@ -144,13 +177,11 @@ document.getElementById('form-register').addEventListener('submit', async e => {
 
     if (reg.error) { toastError(reg.error); btn.disabled = false; btn.textContent = 'Enter Exam →'; return }
 
-    // Start session
     btn.textContent = 'Starting...'
     const started = await api.startSession(roundId, reg.session_token)
 
     if (started.error) { toastError(started.error); btn.disabled = false; btn.textContent = 'Enter Exam →'; return }
 
-    // Save session to localStorage
     saveTestSession(roundId, {
       session_token:    reg.session_token,
       session_id:       reg.session_id,
@@ -162,11 +193,7 @@ document.getElementById('form-register').addEventListener('submit', async e => {
       candidate_name:   fd.get('candidate_name'),
     })
 
-    // Request fullscreen, then navigate
-    try {
-      await document.documentElement.requestFullscreen()
-    } catch {}
-
+    try { await document.documentElement.requestFullscreen() } catch {}
     window.location.replace(`/test/exam.html?round=${roundId}`)
   } catch (err) {
     toastError(err.message)
