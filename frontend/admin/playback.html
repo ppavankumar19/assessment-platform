@@ -5,58 +5,155 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Typing Playback — Assessment Platform</title>
   <link rel="stylesheet" href="/css/app.css">
-  <!-- Monaco Editor via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <style>
+    .pb-metric-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .4rem 0; border-bottom: 1px solid var(--border);
+      font-size: .8125rem;
+    }
+    .pb-metric-row:last-child { border-bottom: none; }
+    .pb-metric-label { color: var(--text-400); }
+    .pb-metric-value { font-weight: 600; color: var(--text-100); }
+    .pb-metric-value.warn { color: var(--yellow-400, #fbbf24); }
+
+    .pb-snapshot-item {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .3125rem .5rem; border-radius: var(--radius);
+      cursor: pointer; transition: background .1s;
+      font-size: .8125rem;
+    }
+    .pb-snapshot-item:hover { background: var(--bg-750, #0f1e33); }
+    .pb-snapshot-item.active { background: rgba(59,130,246,.12); }
+
+    .pb-snapshot-dot {
+      width: .5rem; height: .5rem; border-radius: 50%; flex-shrink: 0;
+    }
+    .pb-snapshot-dot.periodic { background: var(--text-500); }
+    .pb-snapshot-dot.paste    { background: var(--yellow-400, #fbbf24); }
+    .pb-snapshot-dot.run      { background: var(--indigo-400); }
+    .pb-snapshot-dot.submit   { background: var(--green-400); }
+    .pb-snapshot-dot.initial  { background: var(--text-500); }
+
+    .pb-slider-wrap {
+      position: relative; padding: .875rem 1.25rem 1rem;
+      border-top: 1px solid var(--border); background: var(--bg-800); flex-shrink: 0;
+    }
+    .pb-slider-track {
+      position: relative; display: flex; align-items: center; gap: .875rem;
+    }
+    #pb-slider {
+      flex: 1; height: .25rem; appearance: none; background: var(--bg-700, #112033);
+      border-radius: 99px; outline: none; cursor: pointer;
+      accent-color: var(--indigo-500);
+    }
+    #pb-slider::-webkit-slider-thumb {
+      appearance: none; width: .9rem; height: .9rem;
+      background: var(--indigo-500); border-radius: 50%;
+      border: 2px solid var(--bg-800); box-shadow: 0 0 0 2px var(--indigo-500);
+      cursor: pointer;
+    }
+
+    .sidebar-section-label {
+      font-size: .6875rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text-500); margin-bottom: .5rem;
+    }
+  </style>
 </head>
 <body>
 <div class="playback-container">
+
   <!-- Header -->
   <div class="playback-header">
     <a href="/admin/" class="btn btn-ghost btn-sm">&larr; Dashboard</a>
-    <div>
-      <h3 id="pb-candidate">Loading...</h3>
-      <p class="text-sm text-muted" id="pb-session-info"></p>
+    <div style="width:1px;height:1.25rem;background:var(--border);flex-shrink:0;"></div>
+    <div style="display:flex;align-items:center;gap:.625rem;">
+      <span style="font-size:.9375rem;color:var(--text-400);">&#127897;</span>
+      <div>
+        <div style="font-size:.9375rem;font-weight:600;color:var(--text-50);" id="pb-candidate">Loading...</div>
+        <div class="text-xs text-muted" style="margin-top:.125rem;" id="pb-session-info"></div>
+      </div>
     </div>
-    <div class="flex items-center gap-2 ml-auto">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-left:auto;">
       <span id="pb-status-badge"></span>
       <button class="btn btn-danger btn-sm" id="btn-disqualify">Disqualify</button>
     </div>
   </div>
 
   <div class="playback-body">
-    <!-- Sidebar: question selector + paste markers -->
+
+    <!-- Sidebar -->
     <div class="playback-sidebar">
-      <div class="mb-4">
-        <label class="mb-2" style="display:block">Question</label>
-        <select class="select" id="pb-question-select"></select>
+
+      <!-- Question selector -->
+      <div style="margin-bottom:1.25rem;">
+        <div class="sidebar-section-label">Question</div>
+        <select class="select" id="pb-question-select" style="font-size:.8125rem;"></select>
       </div>
 
-      <h4 class="mb-2 text-sm">Snapshot Timeline</h4>
-      <div id="pb-markers">
-        <p class="text-sm text-muted">Select a question to see snapshots.</p>
+      <!-- Snapshot timeline -->
+      <div style="margin-bottom:1.25rem;">
+        <div class="sidebar-section-label">Snapshot Timeline</div>
+        <div id="pb-markers">
+          <p class="text-sm text-muted">Select a question to see snapshots.</p>
+        </div>
       </div>
 
-      <div class="sep"></div>
-      <h4 class="mb-2 text-sm">Metrics</h4>
-      <div id="pb-metrics" class="text-sm" style="line-height:2"></div>
+      <div style="height:1px;background:var(--border);margin:.75rem 0 1rem;"></div>
+
+      <!-- Metrics -->
+      <div>
+        <div class="sidebar-section-label">Typing Metrics</div>
+        <div id="pb-metrics">
+          <p class="text-sm text-muted">No data.</p>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div style="margin-top:1.5rem;">
+        <div class="sidebar-section-label">Legend</div>
+        <div style="display:flex;flex-direction:column;gap:.375rem;font-size:.75rem;color:var(--text-400);">
+          <div style="display:flex;align-items:center;gap:.5rem;"><span class="pb-snapshot-dot periodic"></span> Periodic snapshot</div>
+          <div style="display:flex;align-items:center;gap:.5rem;"><span class="pb-snapshot-dot paste"></span> Paste detected</div>
+          <div style="display:flex;align-items:center;gap:.5rem;"><span class="pb-snapshot-dot run"></span> Run clicked</div>
+          <div style="display:flex;align-items:center;gap:.5rem;"><span class="pb-snapshot-dot submit"></span> Submit</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Monaco Editor viewer -->
+    <!-- Main: editor + controls -->
     <div class="playback-main">
+
+      <!-- Editor toolbar -->
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg-850,#0a1628);flex-shrink:0;">
+        <span class="editor-lang-badge">Python 3</span>
+        <span style="color:var(--border);font-size:.875rem;">&#124;</span>
+        <span class="text-xs text-muted">Read-only replay</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;">
+          <span class="text-xs text-muted" id="pb-trigger" style="font-size:.75rem;"></span>
+        </div>
+      </div>
+
       <div class="playback-editor" id="pb-editor"></div>
 
-      <!-- Timeline slider -->
-      <div class="playback-controls">
-        <div class="flex items-center gap-3 mb-2">
-          <button class="btn btn-outline btn-sm" id="pb-play">&#9654; Play</button>
-          <span class="text-sm text-muted" id="pb-time">T+0s</span>
-          <span class="text-sm text-muted" id="pb-trigger"></span>
+      <!-- Timeline controls -->
+      <div class="pb-slider-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.625rem;">
+          <div style="display:flex;align-items:center;gap:.75rem;">
+            <button class="btn btn-outline btn-sm" id="pb-play" style="min-width:5.5rem;">&#9654; Play</button>
+            <div style="display:flex;align-items:center;gap:.375rem;">
+              <span style="font-size:.75rem;color:var(--text-500);">&#128336;</span>
+              <span class="text-sm" style="font-weight:600;color:var(--indigo-400);font-variant-numeric:tabular-nums;" id="pb-time">T+0s</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <span class="text-xs text-muted" id="pb-start-label">Start</span>
+            <span style="color:var(--text-500);font-size:.75rem;">&#8594;</span>
+            <span class="text-xs text-muted" id="pb-end-label">End</span>
+          </div>
         </div>
-        <input type="range" id="pb-slider" min="0" max="100" value="0"
-          style="width:100%;accent-color:var(--indigo-500);cursor:pointer">
-        <div class="flex justify-between mt-1">
-          <span class="text-xs text-muted" id="pb-start-label">Start</span>
-          <span class="text-xs text-muted" id="pb-end-label">End</span>
+        <div class="pb-slider-track">
+          <input type="range" id="pb-slider" min="0" max="100" value="0">
         </div>
       </div>
     </div>
@@ -66,7 +163,9 @@
 <!-- Confirm dialog -->
 <div class="modal-backdrop" id="confirm-modal">
   <div class="modal confirm-dialog">
-    <div class="modal-header"><span class="modal-title" id="confirm-title">Confirm</span></div>
+    <div class="modal-header">
+      <span class="modal-title" id="confirm-title">Confirm</span>
+    </div>
     <p class="confirm-msg" id="confirm-msg"></p>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
@@ -102,6 +201,8 @@ require(['vs/editor/editor.main'], () => {
     readOnly: true,
     minimap: { enabled: false },
     fontSize: 14,
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    fontLigatures: true,
     scrollBeyondLastLine: false,
     wordWrap: 'on',
     lineNumbers: 'on',
@@ -150,15 +251,16 @@ function loadSubmission(subId) {
   // Show metrics
   const mEl = document.getElementById('pb-metrics')
   if (metrics) {
+    const pasteWarn = (metrics.paste_count || 0) > 0
     mEl.innerHTML = `
-      <div><span class="text-muted">Keystrokes:</span> ${metrics.total_keystrokes ?? '—'}</div>
-      <div><span class="text-muted">Pastes:</span> <span class="${(metrics.paste_count||0)>0?'text-warning':''}">${metrics.paste_count ?? 0}</span></div>
-      <div><span class="text-muted">Deletes:</span> ${metrics.delete_count ?? '—'}</div>
-      <div><span class="text-muted">CPM:</span> ${metrics.chars_per_minute ?? '—'}</div>
-      <div><span class="text-muted">WPM:</span> ${metrics.wpm_equivalent ?? '—'}</div>
+      <div class="pb-metric-row"><span class="pb-metric-label">Keystrokes</span><span class="pb-metric-value">${metrics.total_keystrokes ?? '—'}</span></div>
+      <div class="pb-metric-row"><span class="pb-metric-label">Pastes</span><span class="pb-metric-value${pasteWarn ? ' warn' : ''}">${metrics.paste_count ?? 0}${pasteWarn ? ' ⚠' : ''}</span></div>
+      <div class="pb-metric-row"><span class="pb-metric-label">Deletes</span><span class="pb-metric-value">${metrics.delete_count ?? '—'}</span></div>
+      <div class="pb-metric-row"><span class="pb-metric-label">CPM</span><span class="pb-metric-value">${metrics.chars_per_minute ?? '—'}</span></div>
+      <div class="pb-metric-row"><span class="pb-metric-label">WPM</span><span class="pb-metric-value">${metrics.wpm_equivalent ?? '—'}</span></div>
     `
   } else {
-    mEl.innerHTML = '<p class="text-muted">No metrics recorded.</p>'
+    mEl.innerHTML = '<p class="text-sm text-muted">No metrics recorded.</p>'
   }
 
   if (!replay?.snapshots?.length) {
@@ -181,14 +283,16 @@ function loadSubmission(subId) {
 function renderMarkers() {
   const el = document.getElementById('pb-markers')
   el.innerHTML = snapshots.map((s, i) => {
-    const color = s.trigger === 'paste' ? 'text-warning' :
-                  s.trigger === 'run'   ? 'text-indigo'  :
-                  s.trigger === 'submit'? 'text-success'  : 'text-muted'
+    const dotClass = s.trigger === 'paste' ? 'paste' :
+                     s.trigger === 'run'   ? 'run'   :
+                     s.trigger === 'submit'? 'submit' :
+                     s.trigger === 'initial'? 'initial' : 'periodic'
     return `
-      <div class="flex items-center gap-2 mb-1" style="cursor:pointer" onclick="goToSnapshot(${i})">
-        <span class="text-xs ${color}">T+${Math.round(s.t/1000)}s</span>
-        <span class="badge badge-gray" style="font-size:.7rem">${s.trigger}</span>
-        ${s.pastedContent ? `<span class="text-xs text-warning">paste!</span>` : ''}
+      <div class="pb-snapshot-item" id="snap-${i}" onclick="goToSnapshot(${i})">
+        <span class="pb-snapshot-dot ${dotClass}"></span>
+        <span style="color:var(--text-300);font-variant-numeric:tabular-nums;">T+${Math.round(s.t/1000)}s</span>
+        <span class="badge badge-gray" style="font-size:.6875rem;padding:.1rem .35rem;">${s.trigger}</span>
+        ${s.pastedContent ? `<span style="font-size:.7rem;color:var(--yellow-400,#fbbf24);font-weight:600;">PASTE</span>` : ''}
       </div>`
   }).join('')
 }
@@ -199,12 +303,21 @@ window.goToSnapshot = i => {
 
 function setSnapshot(i) {
   if (!snapshots[i]) return
+  // Remove previous active
+  document.querySelectorAll('.pb-snapshot-item').forEach(el => el.classList.remove('active'))
+  document.getElementById(`snap-${i}`)?.classList.add('active')
+
   currentIdx = i
   const s = snapshots[i]
   editor?.setValue(s.code || '')
   document.getElementById('pb-time').textContent = `T+${Math.round(s.t/1000)}s`
-  document.getElementById('pb-trigger').textContent = s.trigger + (s.pastedContent ? ' (PASTE DETECTED)' : '')
-  document.getElementById('pb-trigger').className = `text-sm ${s.trigger === 'paste' ? 'text-warning' : 'text-muted'}`
+  const trigEl = document.getElementById('pb-trigger')
+  if (s.trigger === 'paste') {
+    trigEl.innerHTML = `<span style="color:var(--yellow-400,#fbbf24);font-weight:600;">&#9888; Paste detected</span>`
+  } else {
+    trigEl.textContent = s.trigger
+    trigEl.style.color = ''
+  }
 }
 
 // Slider
@@ -216,7 +329,7 @@ document.getElementById('pb-slider').addEventListener('input', e => {
 // Play button
 document.getElementById('pb-play').addEventListener('click', () => {
   if (playInterval) { stopPlay(); return }
-  document.getElementById('pb-play').textContent = '⏸ Pause'
+  document.getElementById('pb-play').innerHTML = '&#9646;&#9646; Pause'
   playInterval = setInterval(() => {
     if (currentIdx >= snapshots.length - 1) { stopPlay(); return }
     setSnapshot(currentIdx + 1)
@@ -227,7 +340,7 @@ document.getElementById('pb-play').addEventListener('click', () => {
 function stopPlay() {
   clearInterval(playInterval)
   playInterval = null
-  document.getElementById('pb-play').textContent = '▶ Play'
+  document.getElementById('pb-play').innerHTML = '&#9654; Play'
 }
 
 // Disqualify
