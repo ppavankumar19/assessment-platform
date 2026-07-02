@@ -1,11 +1,11 @@
 {
   "outputDirectory": "frontend",
+  "alias": ["assessment-platform-drab.vercel.app"],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" }
   ],
   "functions": {
     "api/index.js": {
-      "memory": 512,
       "maxDuration": 30
     }
   }
