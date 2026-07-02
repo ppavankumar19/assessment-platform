@@ -9,34 +9,42 @@
 </head>
 <body oncontextmenu="return false">
 <div class="exam-layout">
+
   <!-- Top bar -->
   <div class="exam-topbar">
     <div class="exam-topbar-inner">
       <div class="flex items-center gap-3">
-        <span class="text-sm font-semibold" id="q-progress">Q 1 / 1</span>
-        <span id="python-status" class="flex items-center gap-1 text-xs" style="color:var(--amber-400)">
+        <div class="exam-brand">
+          <div class="exam-brand-icon">&#9670;</div>
+          <span class="exam-brand-name">Assessment</span>
+        </div>
+        <div style="width:1px;height:1.125rem;background:var(--border)"></div>
+        <span class="badge badge-indigo" id="q-progress">Q 1 / 1</span>
+        <span id="python-status" class="flex items-center gap-1" style="font-size:.75rem;color:var(--amber-400)">
           <span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span> Loading Python...
         </span>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <span class="badge badge-gray" id="q-points">—</span>
-        <span class="timer-text timer-normal-text" id="timer-display">—</span>
+        <div class="timer-display-box">
+          <span style="font-size:.8125rem;color:var(--text-400)">&#9201;</span>
+          <span class="timer-text timer-normal-text" id="timer-display">—:——</span>
+        </div>
       </div>
     </div>
-    <!-- Timer bar -->
     <div class="timer-bar-wrap"><div class="timer-bar timer-normal" id="timer-bar" style="width:100%"></div></div>
-    <!-- Question progress bar -->
     <div class="progress-bar-wrap"><div class="progress-bar" id="q-progress-bar" style="width:0%"></div></div>
   </div>
 
   <!-- Main split -->
   <div class="exam-main">
+
     <!-- Left: problem statement -->
     <div class="exam-panel-left">
-      <h2 class="mb-2" id="q-title">Loading...</h2>
-      <p class="text-sm mb-4" id="q-desc" style="white-space:pre-wrap"></p>
+      <h2 class="mb-2" id="q-title" style="font-size:1.125rem">Loading...</h2>
+      <p class="text-sm mb-4" id="q-desc" style="white-space:pre-wrap;line-height:1.65;color:var(--text-300)"></p>
 
-      <!-- Test cases (visible only) -->
+      <!-- Test cases (visible) -->
       <div id="tc-container"></div>
 
       <!-- Question nav dots -->
@@ -47,10 +55,13 @@
     <div class="exam-panel-right">
       <!-- Editor toolbar -->
       <div class="editor-toolbar">
-        <span class="text-xs text-muted font-mono">Python 3</span>
+        <div class="editor-lang-badge">
+          <span style="display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--indigo-400)"></span>
+          Python 3
+        </div>
         <div class="flex items-center gap-2">
-          <button class="btn btn-outline btn-sm" id="btn-run" disabled>&#9654; Run</button>
-          <button class="btn btn-success btn-sm" id="btn-submit" disabled>&#128228; Submit</button>
+          <button class="btn btn-ghost btn-sm" id="btn-run" disabled>&#9654; Run</button>
+          <button class="btn btn-success btn-sm" id="btn-submit" disabled>&#10003; Submit</button>
         </div>
       </div>
 
@@ -59,9 +70,9 @@
 
       <!-- Output panel -->
       <div class="output-panel">
-        <div class="text-xs text-muted font-semibold mb-2">Output</div>
+        <div class="output-label">Output</div>
         <div id="output-content">
-          <p class="text-sm" style="color:var(--text-500)">Click Run to test your code against visible test cases.</p>
+          <p style="font-size:.875rem;color:var(--text-500)">Click Run to test your code against visible test cases.</p>
         </div>
       </div>
     </div>
@@ -69,38 +80,42 @@
 
   <!-- Bottom nav -->
   <div class="exam-bottombar">
-    <button class="btn btn-ghost btn-sm" id="btn-prev">&#8592; Previous</button>
+    <button class="btn btn-ghost btn-sm" id="btn-prev">&#8592; Prev</button>
     <div class="flex items-center gap-2">
       <button class="btn btn-ghost btn-sm" id="btn-next">Next &#8594;</button>
-      <button class="btn btn-success btn-sm hidden" id="btn-finish">Finish Assessment</button>
+      <button class="btn btn-success btn-sm hidden" id="btn-finish">&#10003; Finish Assessment</button>
     </div>
   </div>
 </div>
 
-<!-- Submit confirm dialog -->
+<!-- Submit confirm -->
 <div class="modal-backdrop" id="modal-submit">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-header"><span class="modal-title">Submit Solution?</span></div>
-    <p class="text-sm mb-4" style="color:var(--text-300)">
-      Your code will be tested against <strong>all test cases including hidden ones</strong>. This cannot be undone.
-    </p>
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">&#10003; Submit Solution?</span>
+    </div>
+    <div class="info-box warning mb-4" style="font-size:.875rem;">
+      Your code will be tested against <strong style="color:var(--text-100)">all test cases including hidden ones</strong>. This action cannot be undone.
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="modal-submit-cancel">Cancel</button>
-      <button class="btn btn-success" id="modal-submit-ok">Submit</button>
+      <button class="btn btn-success" id="modal-submit-ok">Submit Solution</button>
     </div>
   </div>
 </div>
 
-<!-- Finish confirm dialog -->
+<!-- Finish confirm -->
 <div class="modal-backdrop" id="modal-finish">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-header"><span class="modal-title">Finish Assessment?</span></div>
-    <p class="text-sm mb-4" style="color:var(--text-300)">
-      Are you sure you want to finish? All unsubmitted questions will be saved without test results.
-    </p>
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Finish Assessment?</span>
+    </div>
+    <div class="info-box warning mb-4" style="font-size:.875rem;">
+      Are you sure? All <strong style="color:var(--text-100)">unsubmitted questions</strong> will be saved without test results and cannot be revisited.
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="modal-finish-cancel">Cancel</button>
-      <button class="btn btn-success" id="modal-finish-ok">Finish</button>
+      <button class="btn btn-success" id="modal-finish-ok">Finish Assessment</button>
     </div>
   </div>
 </div>
@@ -122,9 +137,9 @@ if (!session?.session_id || !session?.expires_at) {
 // ---- State ----
 let questions      = []
 let currentIdx     = 0
-let code           = {}          // questionId -> code string
-let submitted      = new Set()   // questionId -> submitted
-let runResults     = {}          // questionId -> results[]
+let code           = {}
+let submitted      = new Set()
+let runResults     = {}
 let editor         = null
 let pythonReady    = false
 let running        = false
@@ -133,8 +148,8 @@ let hasCompleted   = false
 let isSubmitting   = false
 
 // ---- Metrics & Replay ----
-const metrics = {}    // questionId -> metrics obj
-const replays = {}    // questionId -> replay obj
+const metrics = {}
+const replays = {}
 
 function initMetrics(qid) {
   if (!metrics[qid]) metrics[qid] = { keystrokes:0, deletes:0, pastes:0, firstKey:null, startTime:Date.now(), idlePeriods:[], idleStart:null, lastActivity:Date.now() }
@@ -161,10 +176,10 @@ worker.onmessage = e => {
   const d = e.data
   if (d.type === 'ready') {
     pythonReady = true
-    document.getElementById('python-status').innerHTML = '<span style="color:var(--green-400)">&#9654; Python 3 Ready</span>'
+    document.getElementById('python-status').innerHTML = '<span style="color:var(--green-400)">&#9679; Python Ready</span>'
     updateButtons()
   } else if (d.type === 'error') {
-    document.getElementById('python-status').innerHTML = '<span style="color:var(--red-400)">Python failed to load</span>'
+    document.getElementById('python-status').innerHTML = '<span style="color:var(--red-400)">Python failed</span>'
   } else if (d.type === 'result') {
     const cb = pendingCallbacks.get(d.id)
     if (cb) { cb(d.results); pendingCallbacks.delete(d.id) }
@@ -200,6 +215,8 @@ require(['vs/editor/editor.main'], () => {
     lineNumbers: 'on',
     padding: { top: 12 },
     contextmenu: false,
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+    fontLigatures: true,
   })
 
   editor.onDidChangeModelContent(() => {
@@ -213,7 +230,6 @@ require(['vs/editor/editor.main'], () => {
     code[q.id] = val
   })
 
-  // Paste detection
   editor.onDidPaste(() => {
     const q = questions[currentIdx]
     if (!q) return
@@ -266,18 +282,19 @@ function renderQuestion(idx) {
   document.getElementById('q-progress').textContent = `Q ${idx+1} / ${questions.length}`
   document.getElementById('q-progress-bar').style.width = `${((idx+1)/questions.length)*100}%`
 
-  // Test cases (visible)
   const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
   const hidden  = (q.test_cases?.length || 0) - visible.length
   const tcContainer = document.getElementById('tc-container')
   if (visible.length > 0) {
     tcContainer.innerHTML = `
-      <h4 class="text-sm mb-2">Sample Test Cases (${visible.length} visible${hidden > 0 ? `, ${hidden} hidden` : ''})</h4>
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.625rem;">
+        Sample Cases (${visible.length} visible${hidden > 0 ? `, ${hidden} hidden` : ''})
+      </div>
       <div style="display:flex;flex-direction:column;gap:.5rem">
         ${visible.map((tc,i) => `
           <div class="test-case-card">
-            <div class="io-label">Case ${i+1}</div>
-            <div class="test-case-io mt-1">
+            <div class="io-label" style="margin-bottom:.375rem">Case ${i+1}</div>
+            <div class="test-case-io">
               <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
               <div><div class="io-label">Expected</div><div class="io-value">${escHtml(tc.expected_output)}</div></div>
             </div>
@@ -287,13 +304,11 @@ function renderQuestion(idx) {
     tcContainer.innerHTML = ''
   }
 
-  // Editor
   if (editor) {
     editor.setValue(code[q.id] || '')
     editor.updateOptions({ readOnly: submitted.has(q.id) })
   }
 
-  // Output
   renderOutput(q.id)
   updateButtons()
   updateDots()
@@ -305,13 +320,13 @@ function renderOutput(qid) {
   const results = runResults[qid] || []
   const el = document.getElementById('output-content')
   if (!results.length) {
-    el.innerHTML = `<p class="text-sm" style="color:var(--text-500)">${!pythonReady ? 'Loading Python runtime...' : 'Click Run to test your code.'}</p>`
+    el.innerHTML = `<p style="font-size:.875rem;color:var(--text-500)">${!pythonReady ? 'Loading Python runtime...' : 'Click Run to test your code.'}</p>`
     return
   }
   el.innerHTML = results.map((r,i) => `
     <div class="result-item">
       <div class="${r.passed ? 'result-pass' : 'result-fail'}">
-        ${r.passed ? '&#10004;' : '&#10008;'} Case ${i+1}: ${r.status} (${r.time_ms}ms)
+        ${r.passed ? '&#10004;' : '&#10008;'} Case ${i+1}: ${r.status} <span style="font-weight:400;font-size:.8125rem;opacity:.7">(${r.time_ms}ms)</span>
       </div>
       ${!r.passed ? `
         <div class="result-detail">
@@ -330,7 +345,7 @@ function updateButtons() {
   document.getElementById('btn-run').disabled    = !pythonReady || !hasCode || isSubmitted || running
   document.getElementById('btn-submit').disabled = !pythonReady || !hasCode || isSubmitted || submitting || running
   document.getElementById('btn-run').textContent    = running    ? '&#9679; Running...' : '&#9654; Run'
-  document.getElementById('btn-submit').textContent = submitting ? 'Submitting...'      : '&#128228; Submit'
+  document.getElementById('btn-submit').textContent = submitting ? 'Submitting...'      : '&#10003; Submit'
   document.getElementById('btn-prev').disabled = currentIdx === 0
   document.getElementById('btn-next').classList.toggle('hidden', currentIdx >= questions.length - 1)
   document.getElementById('btn-finish').classList.toggle('hidden', !questions.every(q => submitted.has(q.id)))
@@ -357,11 +372,7 @@ function startTimer() {
 
   function tick() {
     const remaining = expiry - Date.now()
-    if (remaining <= 0) {
-      setTimer(0, total)
-      autoSubmit('timer_expired')
-      return
-    }
+    if (remaining <= 0) { setTimer(0, total); autoSubmit('timer_expired'); return }
     setTimer(remaining, total)
     requestAnimationFrame(() => setTimeout(tick, 1000))
   }
@@ -431,7 +442,6 @@ async function autoSubmit(reason) {
     await api.logEvent(session.session_id, session.session_token, reason, { timestamp: Date.now() })
   } catch {}
 
-  // Submit unsaved questions
   for (const q of questions) {
     if (submitted.has(q.id)) continue
     const c = code[q.id]
@@ -451,10 +461,7 @@ async function autoSubmit(reason) {
     } catch {}
   }
 
-  try {
-    await api.completeSession(session.session_id, session.session_token)
-  } catch {}
-
+  try { await api.completeSession(session.session_id, session.session_token) } catch {}
   document.exitFullscreen().catch(() => {})
   window.location.replace(`/test/complete.html?round=${roundId}`)
 }
@@ -472,7 +479,6 @@ document.getElementById('btn-run').addEventListener('click', async () => {
     runResults[q.id] = results
     renderOutput(q.id)
 
-    // Record run in replay
     const replay = replays[q.id]
     if (replay) {
       const t = Date.now() - replay.startTime
@@ -504,14 +510,12 @@ document.getElementById('modal-submit-ok').addEventListener('click', async () =>
   updateButtons()
 
   try {
-    // Fetch all test cases (including hidden)
     const allQs = await api.getQuestions(roundId, session.session_token, true)
     const fullQ  = allQs.find(x => x.id === q.id)
     const allTcs = fullQ?.test_cases || []
 
     const results = await runPython(code[q.id] || '', allTcs)
 
-    // Record submit snapshot
     const replay = replays[q.id]
     if (replay) replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'submit' })
 
@@ -528,7 +532,6 @@ document.getElementById('modal-submit-ok').addEventListener('click', async () =>
     if (res.error) { toastError(res.error); return }
 
     submitted.add(q.id)
-    // Show only visible results
     runResults[q.id] = results.filter(r => !r.is_hidden)
     renderOutput(q.id)
     updateDots()
@@ -560,9 +563,7 @@ document.getElementById('modal-finish-ok').addEventListener('click', async () =>
   if (hasCompleted) return
   hasCompleted = true
   document.getElementById('modal-finish').classList.remove('open')
-  try {
-    await api.completeSession(session.session_id, session.session_token)
-  } catch {}
+  try { await api.completeSession(session.session_id, session.session_token) } catch {}
   document.exitFullscreen().catch(() => {})
   window.location.replace(`/test/complete.html?round=${roundId}`)
 })
