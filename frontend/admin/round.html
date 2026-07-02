@@ -19,21 +19,21 @@
         <div class="avatar" id="user-avatar">A</div>
         <div class="sidebar-user-info">
           <div class="sidebar-user-name" id="user-name">Admin</div>
-          <div class="sidebar-user-role">Admin</div>
+          <div class="sidebar-user-role">Administrator</div>
         </div>
       </div>
-      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">Sign out</button>
+      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">&#8594; Sign out</button>
     </div>
   </aside>
 
   <main class="admin-content">
-    <!-- Header -->
     <div class="content-header">
       <div class="flex items-center gap-3">
         <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
-        <a href="/admin/" class="btn btn-ghost btn-sm">&larr; Back</a>
+        <a href="/admin/" class="btn btn-ghost btn-sm">&larr; Dashboard</a>
+        <div style="width:1px;height:1.25rem;background:var(--border)"></div>
         <div>
-          <h2 id="round-title">Loading...</h2>
+          <h2 id="round-title" style="font-size:1.25rem">Loading...</h2>
           <div class="flex items-center gap-2 mt-1" id="round-meta"></div>
         </div>
       </div>
@@ -41,22 +41,34 @@
     </div>
 
     <div class="content-body">
-      <!-- Stats row -->
+      <!-- Stats -->
       <div class="grid-5 mb-6">
         <div class="stat-card clickable" id="stat-cutoff" title="Click to edit cutoff score">
-          <div class="stat-label">Cutoff Score</div>
+          <div class="stat-label">Cutoff Score &#9998;</div>
           <div class="stat-value amber" id="val-cutoff">—</div>
         </div>
-        <div class="stat-card"><div class="stat-label">Questions</div><div class="stat-value" id="val-questions">—</div></div>
-        <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value indigo" id="val-sessions">—</div></div>
-        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value green" id="val-completed">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-value" id="val-avg">—</div></div>
+        <div class="stat-card">
+          <div class="stat-label">Questions</div>
+          <div class="stat-value" id="val-questions">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Sessions</div>
+          <div class="stat-value indigo" id="val-sessions">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completed</div>
+          <div class="stat-value green" id="val-completed">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Score</div>
+          <div class="stat-value" id="val-avg">—</div>
+        </div>
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-4 mb-4" style="border-bottom:1px solid var(--border)">
-        <button class="tab-btn active" data-tab="questions" style="padding:.625rem 0;background:none;border:none;cursor:pointer;color:var(--text-300);font-weight:600;border-bottom:2px solid var(--indigo-500);margin-bottom:-1px">Questions</button>
-        <button class="tab-btn" data-tab="sessions" style="padding:.625rem 0;background:none;border:none;cursor:pointer;color:var(--text-500);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px">Sessions</button>
+      <div style="border-bottom:1px solid var(--border);display:flex;gap:0;margin-bottom:1.25rem">
+        <button class="tab-btn active" data-tab="questions" style="padding:.625rem .875rem;background:none;border:none;border-bottom:2px solid var(--indigo-500);margin-bottom:-1px;cursor:pointer;font-size:.875rem;font-weight:600;color:var(--indigo-400)">Questions</button>
+        <button class="tab-btn" data-tab="sessions" style="padding:.625rem .875rem;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;font-size:.875rem;font-weight:500;color:var(--text-500)">Sessions</button>
       </div>
 
       <!-- Questions tab -->
@@ -73,11 +85,11 @@
         <div class="section-header mb-4">
           <span class="text-sm text-muted" id="sessions-count-label">Loading...</span>
           <div class="flex gap-2">
-            <button class="btn btn-outline btn-sm" id="btn-export">Export All</button>
-            <button class="btn btn-outline btn-sm" id="btn-export-final">Export Finalized</button>
+            <button class="btn btn-outline btn-sm" id="btn-export">&#8595; Export All</button>
+            <button class="btn btn-outline btn-sm" id="btn-export-final">&#8595; Export Finalized</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" style="padding:0;overflow:hidden">
           <div class="table-wrap">
             <table>
               <thead>
@@ -112,7 +124,7 @@
       <div class="grid-2">
         <div class="form-group">
           <label>Title *</label>
-          <input type="text" class="input" name="title" required>
+          <input type="text" class="input" name="title" required placeholder="Question title">
         </div>
         <div class="form-group">
           <label>Type</label>
@@ -138,14 +150,13 @@
       </div>
       <div class="form-group">
         <label>Starter Code (Python)</label>
-        <textarea class="textarea" name="starter_code" rows="4" placeholder="# Starter code..." style="font-family:monospace;font-size:.8125rem"></textarea>
+        <textarea class="textarea font-mono" name="starter_code" rows="4" placeholder="# Starter code..." style="font-size:.8125rem"></textarea>
       </div>
 
-      <!-- Test Cases -->
       <div class="sep"></div>
       <div class="section-header mb-3">
         <h4>Test Cases</h4>
-        <button type="button" class="btn btn-outline btn-sm" id="btn-add-tc">+ Add Test Case</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-add-tc">+ Add Case</button>
       </div>
       <div id="test-cases-editor"></div>
 
@@ -216,23 +227,19 @@ let round = null
 let sessions = []
 let testCaseCount = 0
 
-// Sidebar toggle
 document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open')
 })
 
-// Close modals
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.close))
 })
 
-// Logout
 document.getElementById('btn-logout').addEventListener('click', () => {
   localStorage.removeItem('admin_token')
   window.location.replace('/login.html')
 })
 
-// Load user
 ;(async () => {
   try {
     const u = await api.getUser()
@@ -243,14 +250,13 @@ document.getElementById('btn-logout').addEventListener('click', () => {
   } catch { window.location.replace('/login.html') }
 })()
 
-// Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.style.color = 'var(--text-500)'
       b.style.borderBottomColor = 'transparent'
     })
-    btn.style.color = 'var(--text-300)'
+    btn.style.color = 'var(--indigo-400)'
     btn.style.borderBottomColor = 'var(--indigo-500)'
     document.getElementById('tab-questions').classList.toggle('hidden', btn.dataset.tab !== 'questions')
     document.getElementById('tab-sessions').classList.toggle('hidden', btn.dataset.tab !== 'sessions')
@@ -258,12 +264,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   })
 })
 
-// --- Load round ---
 async function loadRound() {
   round = await api.getRound(roundId)
   document.title = `${round.title} — Assessment Platform`
   document.getElementById('round-title').textContent = round.title
-  document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`
+  document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="badge badge-gray">${round.duration_minutes} min</span>`
   document.getElementById('val-cutoff').textContent = round.cutoff_score ?? '—'
   document.getElementById('val-questions').textContent = round.questions?.length || 0
   document.getElementById('q-count-label').textContent = `${round.questions?.length || 0} question${(round.questions?.length || 0) !== 1 ? 's' : ''}`
@@ -290,7 +295,6 @@ function renderActions() {
   el.querySelector('#btn-unpublish')?.addEventListener('click', unpublishRound)
 }
 
-// Cutoff click to edit
 document.getElementById('stat-cutoff').addEventListener('click', () => {
   const v = prompt('Set cutoff score:', round.cutoff_score ?? '')
   if (v === null) return
@@ -301,15 +305,15 @@ document.getElementById('stat-cutoff').addEventListener('click', () => {
 })
 
 async function publishRound() {
-  try { round = await api.publishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Published!') }
+  try { round = await api.publishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="badge badge-gray">${round.duration_minutes} min</span>`; toastSuccess('Published!') }
   catch (e) { toastError(e.message) }
 }
 async function pauseRound() {
-  try { round = await api.pauseRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Paused') }
+  try { round = await api.pauseRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="badge badge-gray">${round.duration_minutes} min</span>`; toastSuccess('Paused') }
   catch (e) { toastError(e.message) }
 }
 async function unpublishRound() {
-  try { round = await api.unpublishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="text-sm text-muted">${round.duration_minutes} min</span>`; toastSuccess('Unpublished') }
+  try { round = await api.unpublishRound(roundId); renderActions(); document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="badge badge-gray">${round.duration_minutes} min</span>`; toastSuccess('Unpublished') }
   catch (e) { toastError(e.message) }
 }
 
@@ -335,14 +339,13 @@ document.getElementById('form-edit-round').addEventListener('submit', async e =>
   } catch (err) { toastError(err.message) }
 })
 
-// --- Questions ---
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 
 function renderQuestions() {
   const qs = round.questions || []
   const container = document.getElementById('questions-list')
   if (qs.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><p>No questions yet.</p></div>`
+    container.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><p>No questions yet. Add your first question to this round.</p></div>`
     return
   }
   container.innerHTML = qs.map((q, i) => {
@@ -351,28 +354,28 @@ function renderQuestions() {
     return `
     <div class="question-card mb-3" id="qcard-${q.id}">
       <div class="question-card-header" onclick="toggleQCard('${q.id}')">
-        <div class="flex items-center gap-3">
-          <span class="text-muted text-sm">#${i+1}</span>
-          <span class="font-semibold">${escHtml(q.title)}</span>
+        <div class="flex items-center gap-3 flex-wrap" style="min-width:0;flex:1">
+          <span class="text-muted text-sm" style="flex-shrink:0">#${i+1}</span>
+          <span class="font-semibold truncate">${escHtml(q.title)}</span>
           <span class="badge badge-gray">${q.points} pts</span>
           <span class="badge badge-indigo">${q.question_type}</span>
-          <span class="text-sm text-muted">${visibleTc.length} visible / ${hiddenTc.length} hidden test cases</span>
+          <span class="text-xs text-muted">${visibleTc.length}v / ${hiddenTc.length}h cases</span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2" style="flex-shrink:0">
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditQuestion('${q.id}')">Edit</button>
-          <button class="btn btn-ghost btn-sm text-danger" onclick="event.stopPropagation();deleteQuestion('${q.id}','${escHtml(q.title)}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="event.stopPropagation();deleteQuestion('${q.id}','${escHtml(q.title)}')">Delete</button>
           <span class="q-chevron">&#8964;</span>
         </div>
       </div>
       <div class="question-card-body">
-        ${q.description ? `<p class="text-sm mb-3">${escHtml(q.description)}</p>` : ''}
+        ${q.description ? `<p class="text-sm mb-3" style="line-height:1.65;color:var(--text-300)">${escHtml(q.description)}</p>` : ''}
         ${q.starter_code ? `<div class="form-group"><label>Starter Code</label><div class="io-value" style="max-height:10rem;overflow:auto">${escHtml(q.starter_code)}</div></div>` : ''}
         <div class="sep"></div>
         <h4 class="mb-3">Test Cases (${q.test_cases?.length || 0} total)</h4>
         ${(q.test_cases||[]).map((tc,j) => `
           <div class="test-case-card">
             <div class="test-case-header">
-              <span class="text-xs font-semibold text-muted">Case ${j+1} — ${tc.points} pts${tc.is_hidden ? ' &nbsp;<span class="badge badge-amber">Hidden</span>' : ''}</span>
+              <span class="text-xs font-semibold text-muted">Case ${j+1} &mdash; ${tc.points} pts${tc.is_hidden ? ' &nbsp;<span class="badge badge-amber">Hidden</span>' : ''}</span>
             </div>
             <div class="test-case-io">
               <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
@@ -386,7 +389,6 @@ function renderQuestions() {
 
 window.toggleQCard = id => document.getElementById(`qcard-${id}`)?.classList.toggle('open')
 
-// Add question
 document.getElementById('btn-add-question').addEventListener('click', () => {
   const form = document.getElementById('form-question')
   form.reset()
@@ -413,7 +415,6 @@ window.openEditQuestion = id => {
   form.starter_code.value = q.starter_code || ''
   document.getElementById('modal-q-title').textContent = 'Edit Question'
   document.getElementById('btn-save-question').textContent = 'Save Changes'
-  // Render existing test cases
   testCaseCount = 0
   document.getElementById('test-cases-editor').innerHTML = ''
   ;(q.test_cases||[]).forEach(tc => addTestCaseRow(tc))
@@ -432,25 +433,25 @@ function addTestCaseRow(tc = null) {
       <span class="text-xs font-semibold text-muted">Case ${idx+1}</span>
       <div class="flex items-center gap-2">
         <label class="toggle-wrap text-xs text-muted">
-          <span class="toggle${tc?.is_hidden ? ' on' : ''}" data-toggle-hidden></span> Hidden
+          <span class="toggle${tc?.is_hidden ? ' on' : ''}" data-toggle-hidden></span>
+          <span>Hidden</span>
         </label>
         <input type="hidden" name="tc_hidden_${idx}" value="${tc?.is_hidden ? 'true' : 'false'}">
         <input type="number" class="input input-sm" name="tc_points_${idx}" value="${tc?.points||0}" style="width:5rem" placeholder="pts">
-        <button type="button" class="btn btn-icon danger" onclick="this.closest('[data-idx]').remove()">&#215;</button>
+        <button type="button" class="btn btn-icon danger" onclick="this.closest('[data-idx]').remove()" style="font-size:1rem">&times;</button>
       </div>
     </div>
     <div class="test-case-io">
       <div>
         <div class="io-label">Input</div>
-        <textarea class="textarea input-sm" name="tc_input_${idx}" rows="2" placeholder="(empty)">${escHtml(tc?.input||'')}</textarea>
+        <textarea class="textarea input-sm font-mono" name="tc_input_${idx}" rows="2" placeholder="(empty)">${escHtml(tc?.input||'')}</textarea>
       </div>
       <div>
         <div class="io-label">Expected Output</div>
-        <textarea class="textarea input-sm" name="tc_expected_${idx}" rows="2" placeholder="expected output">${escHtml(tc?.expected_output||'')}</textarea>
+        <textarea class="textarea input-sm font-mono" name="tc_expected_${idx}" rows="2" placeholder="expected output">${escHtml(tc?.expected_output||'')}</textarea>
       </div>
     </div>
   `
-  // Toggle logic
   const toggle = row.querySelector('[data-toggle-hidden]')
   const hiddenInput = row.querySelector(`[name="tc_hidden_${idx}"]`)
   toggle.addEventListener('click', () => {
@@ -460,11 +461,9 @@ function addTestCaseRow(tc = null) {
   document.getElementById('test-cases-editor').appendChild(row)
 }
 
-// Collect test cases from form
 function collectTestCases(form) {
   const tcs = []
-  const editor = document.getElementById('test-cases-editor')
-  editor.querySelectorAll('[data-idx]').forEach((row, i) => {
+  document.getElementById('test-cases-editor').querySelectorAll('[data-idx]').forEach((row, i) => {
     const idx = row.dataset.idx
     tcs.push({
       input:           form[`tc_input_${idx}`]?.value || '',
@@ -519,14 +518,12 @@ window.deleteQuestion = (id, title) => {
   }, 'Delete Question')
 }
 
-// --- Sessions ---
 async function loadSessions() {
   try {
     sessions = await api.getRoundSessions(roundId)
     document.getElementById('sessions-count-label').textContent = `${sessions.length} session${sessions.length!==1?'s':''}`
     document.getElementById('val-sessions').textContent = sessions.length
     const comp = sessions.filter(s => s.status === 'completed').length
-    const disq = sessions.filter(s => s.status === 'disqualified').length
     document.getElementById('val-completed').textContent = comp
     const scored = sessions.filter(s => s.score != null && s.score > 0)
     document.getElementById('val-avg').textContent = scored.length
@@ -549,7 +546,7 @@ function renderSessions() {
       </td>
       <td>
         <div class="text-sm">${escHtml(s.college_name||'—')}</div>
-        <div class="text-xs text-muted">${escHtml(s.roll_no||'')} ${s.branch ? `· ${escHtml(s.branch)}` : ''}</div>
+        <div class="text-xs text-muted">${escHtml(s.roll_no||'')}${s.branch ? ` &middot; ${escHtml(s.branch)}` : ''}</div>
       </td>
       <td>${statusBadge(s.status)}</td>
       <td class="font-semibold">${s.score ?? '—'}</td>
@@ -558,7 +555,7 @@ function renderSessions() {
         <div class="flex items-center gap-1">
           <a href="/admin/playback.html?session=${s.id}" class="btn btn-icon" title="View replay">&#9654;</a>
           <button class="btn btn-icon warning" title="Disqualify" onclick="disqualifySession('${s.id}','${escHtml(s.candidate_name||'')}')">&#9888;</button>
-          <button class="btn btn-icon danger" title="Delete session" onclick="deleteSession('${s.id}','${escHtml(s.candidate_name||'')}')">&#128465;</button>
+          <button class="btn btn-icon danger" title="Delete" onclick="deleteSession('${s.id}','${escHtml(s.candidate_name||'')}')">&#128465;</button>
         </div>
       </td>
     </tr>
@@ -579,7 +576,6 @@ window.deleteSession = (id, name) => {
   }, 'Delete Session')
 }
 
-// Export
 async function doExport(finalized) {
   try {
     const res = await api.exportRound(roundId, finalized)
