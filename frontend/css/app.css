@@ -136,24 +136,29 @@ code, pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
 .btn-primary:hover {
-  background: var(--indigo-700); border-color: var(--indigo-700);
+  background: var(--indigo-700); border-color: var(--indigo-700); color: #fff;
   transform: translateY(-1px); box-shadow: 0 4px 14px rgba(29,78,216,.3);
 }
-.btn-primary:active { transform: translateY(0); }
+.btn-primary:active { transform: translateY(0); color: #fff; }
 
 .btn-success {
   background: var(--green-600); color: #fff; border-color: var(--green-600);
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
 .btn-success:hover {
-  background: var(--green-700); border-color: var(--green-700);
+  background: var(--green-700); border-color: var(--green-700); color: #fff;
   transform: translateY(-1px); box-shadow: 0 4px 14px rgba(4,120,87,.25);
 }
-.btn-success:active { transform: translateY(0); }
+.btn-success:active { transform: translateY(0); color: #fff; }
 
 .btn-danger { background: var(--red-600); color: #fff; border-color: var(--red-600); }
-.btn-danger:hover { background: #991b1b; transform: translateY(-1px); }
-.btn-danger:active { transform: translateY(0); }
+.btn-danger:hover { background: #991b1b; color: #fff; transform: translateY(-1px); }
+.btn-danger:active { transform: translateY(0); color: #fff; }
+
+/* Prevent generic link hover colour from overriding coloured buttons */
+a.btn-primary, a.btn-primary:hover,
+a.btn-success, a.btn-success:hover,
+a.btn-danger,  a.btn-danger:hover  { color: #fff; }
 
 .btn-ghost {
   background: transparent; color: var(--text-400); border-color: var(--border);

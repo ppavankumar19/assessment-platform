@@ -183,6 +183,7 @@ let submitted        = new Set()
 let runResults       = {}      // {qid: result[]}
 let editor           = null
 let pythonReady      = false
+let cNotSupported    = false   // true once server returns 501 for C execution
 let running          = false
 let submitting       = false
 let hasCompleted     = false
@@ -242,7 +243,9 @@ worker.onerror = () => {
 
 function updateLangStatus() {
   const el = document.getElementById('lang-status')
-  if (selectedLang === 'c') {
+  if (selectedLang === 'c' && cNotSupported) {
+    el.innerHTML = '<span style="color:var(--amber-500)">&#9888; C not available on this server</span>'
+  } else if (selectedLang === 'c') {
     el.innerHTML = '<span style="color:var(--green-400)">&#9679; C (gcc) Ready</span>'
   } else if (pythonReady) {
     el.innerHTML = '<span style="color:var(--green-400)">&#9679; Python Ready</span>'
@@ -274,7 +277,17 @@ async function runC(codeStr, testCases) {
     body: JSON.stringify({ session_token: session.session_token, code: codeStr, test_cases: testCases }),
   })
   const data = await res.json()
-  if (res.status === 501) throw new Error(data.error || 'C execution not supported on this server.')
+  if (res.status === 501) {
+    cNotSupported = true
+    updateLangStatus()
+    // Return fake results so the output panel shows the explanation inline
+    return (testCases || []).map(tc => ({
+      case_id: tc.id, passed: false, stdout: '', stderr: '',
+      status: 'Unavailable', time_ms: 0, score: 0,
+      is_hidden: tc.is_hidden || false, expected_output: tc.expected_output || '',
+      _unavailable: true,
+    }))
+  }
   if (!res.ok) throw new Error(data.error || `Server error: HTTP ${res.status}`)
   return data.results || []
 }
@@ -355,6 +368,8 @@ document.getElementById('lang-select').addEventListener('change', (e) => {
   document.getElementById('lang-label').textContent = newLang === 'c' ? 'C (gcc)' : 'Python 3'
   updateLangStatus()
   updateButtons()
+  // If already know C isn't available, show warning immediately in output panel
+  if (newLang === 'c' && cNotSupported) renderOutput(q.id)
 })
 
 // ── Load questions ──
@@ -446,8 +461,23 @@ function renderOutput(qid) {
   const results = runResults[qid] || []
   const el      = document.getElementById('output-content')
   if (!results.length) {
+    if (cNotSupported && selectedLang === 'c') {
+      el.innerHTML = `<div style="padding:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);color:var(--amber-500);font-size:.875rem;line-height:1.5">
+        <strong>C execution is not available on this deployment.</strong><br>
+        This server does not have gcc installed. Switch to <strong>Python 3</strong> to run your code here.
+      </div>`
+      return
+    }
     const waiting = selectedLang === 'python' ? !pythonReady : false
     el.innerHTML  = `<p style="font-size:.875rem;color:var(--text-500)">${waiting ? 'Loading Python runtime...' : 'Click Run to test your code.'}</p>`
+    return
+  }
+  // If all results are flagged as unavailable (C on non-gcc server)
+  if (results[0]?._unavailable) {
+    el.innerHTML = `<div style="padding:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);color:var(--amber-500);font-size:.875rem;line-height:1.5">
+      <strong>C execution is not available on this deployment.</strong><br>
+      This server does not have gcc installed. Switch to <strong>Python 3</strong> to run and submit your code.
+    </div>`
     return
   }
   el.innerHTML = results.map((r,i) => `
@@ -667,6 +697,10 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   if (!q || submitted.has(q.id) || submitting || running) return
   if (selectedLang === 'python' && !pythonReady) { toastWarning('Python is still loading...'); return }
   if (!(code[q.id] || '').trim()) { toastWarning('Please write some code first.'); return }
+  if (cNotSupported && selectedLang === 'c') {
+    toastWarning('C execution is not available on this server. Switch to Python 3 to run and submit your code.')
+    return
+  }
 
   submitting = true
   updateButtons()
@@ -872,8 +906,12 @@ document.getElementById('modal-finish-cancel').addEventListener('click', () => {
 document.getElementById('modal-finish-ok').addEventListener('click', async () => {
   if (hasCompleted) return
   hasCompleted = true
+  const btn = document.getElementById('modal-finish-ok')
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:6px"></span> Finishing...'
   document.getElementById('modal-finish').classList.remove('open')
-  try { await api.completeSession(session.session_id, session.session_token) } catch {}
+  // Fire API call but don't block navigation on it
+  api.completeSession(session.session_id, session.session_token).catch(() => {})
   document.exitFullscreen().catch(() => {})
   window.location.replace(`/test/complete.html?round=${roundId}`)
 })
