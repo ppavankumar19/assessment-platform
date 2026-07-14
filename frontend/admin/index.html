@@ -185,6 +185,7 @@ const token = localStorage.getItem('admin_token')
 if (!token) { window.location.replace('/login.html'); throw 0 }
 
 let user = null
+let roundsCache = {}
 
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.close))
@@ -242,7 +243,9 @@ function renderRounds(rounds) {
     return
   }
 
+  roundsCache = {}
   container.innerHTML = rounds.map(r => {
+    roundsCache[r.id] = r
     const sessionCount = r.candidate_sessions?.[0]?.count || 0
     return `
     <div class="card mb-3" style="transition:border-color .15s" onmouseover="this.style.borderColor='var(--border-light)'" onmouseout="this.style.borderColor='var(--border)'">
@@ -257,7 +260,7 @@ function renderRounds(rounds) {
           <span style="color:var(--text-500)">&middot;</span>
           <span class="text-sm text-muted">${r.duration_minutes} min</span>
           <a href="/admin/round.html?id=${r.id}" class="btn btn-outline btn-sm">Manage</a>
-          <button class="btn btn-ghost btn-sm" onclick="openEditRound(${JSON.stringify(r)})">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditRound('${r.id}')">Edit</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="deleteRound('${r.id}', '${escHtml(r.title)}')">Delete</button>
         </div>
       </div>
@@ -312,14 +315,16 @@ window.deleteRound = (id, title) => {
   }, 'Delete Round')
 }
 
-window.openEditRound = (r) => {
+window.openEditRound = (id) => {
+  const r = roundsCache[id]
+  if (!r) return
   const form = document.getElementById('form-edit-round')
-  form.id.value              = r.id
-  form.title.value           = r.title
-  form.description.value     = r.description || ''
-  form.round_type.value      = r.round_type
+  form.id.value               = r.id
+  form.title.value            = r.title
+  form.description.value      = r.description || ''
+  form.round_type.value       = r.round_type
   form.duration_minutes.value = r.duration_minutes
-  form.cutoff_score.value    = r.cutoff_score ?? ''
+  form.cutoff_score.value     = r.cutoff_score ?? ''
   openModal('modal-edit-round')
 }
 
