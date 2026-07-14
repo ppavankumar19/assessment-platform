@@ -194,4 +194,4 @@ ON CONFLICT (id) DO NOTHING;
 -- ── 8. Set admin account ─────────────────────────────────────────
 -- Only this email gets admin access; everyone else is 'candidate'.
 -- Replace the email below with the exact Google/magic-link email used to sign in.
-UPDATE users SET role = 'admin' WHERE email = '029pavankumar@gmail.com';
+UPDATE users SET role = 'admin' WHERE email = '029pavankumar.ponnuri@gmail.com';
