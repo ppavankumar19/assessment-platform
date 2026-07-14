@@ -272,9 +272,9 @@ async function runC(codeStr, testCases) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_token: session.session_token, code: codeStr, test_cases: testCases }),
   })
-  if (!res.ok) throw new Error(`Server error: HTTP ${res.status}`)
   const data = await res.json()
-  if (data.error) throw new Error(data.error)
+  if (res.status === 501) throw new Error(data.error || 'C execution not supported on this server.')
+  if (!res.ok) throw new Error(data.error || `Server error: HTTP ${res.status}`)
   return data.results || []
 }
 

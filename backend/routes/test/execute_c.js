@@ -49,6 +49,18 @@ function normalizeOutput(raw) {
   return String(raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
 }
 
+// Check once at startup whether gcc is available on this machine
+let gccAvailable = null
+function checkGcc() {
+  if (gccAvailable !== null) return Promise.resolve(gccAvailable)
+  return new Promise(resolve => {
+    exec('which gcc', (err) => {
+      gccAvailable = !err
+      resolve(gccAvailable)
+    })
+  })
+}
+
 export default async function testExecuteCRoutes(app) {
   // POST /api/test/execute-c — compile & run C code server-side
   app.post('/execute-c', async (request, reply) => {
@@ -56,6 +68,19 @@ export default async function testExecuteCRoutes(app) {
 
     if (!session_token || !code) {
       return reply.status(400).send({ error: 'session_token and code are required' })
+    }
+
+    // Vercel / serverless environments don't have gcc — return a clear error
+    if (!(await checkGcc())) {
+      return reply.status(501).send({
+        error: 'C code execution requires a self-hosted server with gcc installed. It is not available in this cloud deployment.',
+        results: (test_cases || []).map(tc => ({
+          case_id: tc.id, passed: false, stdout: '', score: 0,
+          stderr: 'C execution not supported in this environment (gcc not found).',
+          status: 'Unsupported', time_ms: 0,
+          is_hidden: tc.is_hidden || false, expected_output: tc.expected_output || '',
+        })),
+      })
     }
 
     // Verify active session
