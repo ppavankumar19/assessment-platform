@@ -255,12 +255,20 @@ function renderRounds(rounds) {
           ${roundStatusBadge(r)}
           ${roundTypeBadge(r.round_type)}
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm text-muted">${sessionCount} session${sessionCount !== 1 ? 's' : ''}</span>
           <span style="color:var(--text-500)">&middot;</span>
           <span class="text-sm text-muted">${r.duration_minutes} min</span>
           <a href="/admin/round.html?id=${r.id}" class="btn btn-outline btn-sm">Manage</a>
           <button class="btn btn-ghost btn-sm" onclick="openEditRound('${r.id}')">Edit</button>
+          ${!r.is_published
+            ? `<button class="btn btn-success btn-sm" onclick="publishRound('${r.id}')">Publish</button>`
+            : r.is_active
+              ? `<button class="btn btn-ghost btn-sm" onclick="pauseRound('${r.id}')">Pause</button>
+                 <button class="btn btn-ghost btn-sm" onclick="unpublishRound('${r.id}')">Unpublish</button>`
+              : `<button class="btn btn-success btn-sm" onclick="publishRound('${r.id}')">Republish</button>
+                 <button class="btn btn-ghost btn-sm" onclick="unpublishRound('${r.id}')">Unpublish</button>`
+          }
           <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="deleteRound('${r.id}', '${escHtml(r.title)}')">Delete</button>
         </div>
       </div>
@@ -313,6 +321,30 @@ window.deleteRound = (id, title) => {
       toastError(e.message)
     }
   }, 'Delete Round')
+}
+
+window.publishRound = async (id) => {
+  try {
+    await api.publishRound(id)
+    toastSuccess('Round published')
+    loadRounds()
+  } catch (e) { toastError(e.message) }
+}
+
+window.unpublishRound = async (id) => {
+  try {
+    await api.unpublishRound(id)
+    toastSuccess('Round unpublished')
+    loadRounds()
+  } catch (e) { toastError(e.message) }
+}
+
+window.pauseRound = async (id) => {
+  try {
+    await api.pauseRound(id)
+    toastSuccess('Round paused')
+    loadRounds()
+  } catch (e) { toastError(e.message) }
 }
 
 window.openEditRound = (id) => {
