@@ -15,9 +15,7 @@ DROP TABLE IF EXISTS questions          CASCADE;
 DROP TABLE IF EXISTS rounds             CASCADE;
 DROP TABLE IF EXISTS users              CASCADE;
 
-DROP TRIGGER  IF EXISTS on_auth_user_created    ON auth.users;
-DROP TRIGGER  IF EXISTS update_users_updated_at ON users;
-DROP TRIGGER  IF EXISTS update_rounds_updated_at ON rounds;
+DROP TRIGGER  IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP FUNCTION IF EXISTS public.update_updated_at();
 
@@ -193,6 +191,7 @@ SELECT
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
 
--- ── 8. Set YOUR account as admin ─────────────────────────────────
--- Replace the email below with your own Google login email, then run:
--- UPDATE users SET role = 'admin' WHERE email = 'you@gmail.com';
+-- ── 8. Set admin account ─────────────────────────────────────────
+-- Only this email gets admin access; everyone else is 'candidate'.
+-- Replace the email below with the exact Google/magic-link email used to sign in.
+UPDATE users SET role = 'admin' WHERE email = '029pavankumar@gmail.com';
