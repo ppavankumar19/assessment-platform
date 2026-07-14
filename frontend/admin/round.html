@@ -149,8 +149,15 @@
         </div>
       </div>
       <div class="form-group">
-        <label>Starter Code (Python)</label>
-        <textarea class="textarea font-mono" name="starter_code" rows="4" placeholder="# Starter code..." style="font-size:.8125rem"></textarea>
+        <label>Language</label>
+        <select class="select" name="language" id="q-language">
+          <option value="python">Python 3</option>
+          <option value="c">C (gcc)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="starter-code-label">Starter Code (Python)</label>
+        <textarea class="textarea font-mono" name="starter_code" id="q-starter-code" rows="5" placeholder="# Write your starter code here..." style="font-size:.8125rem"></textarea>
       </div>
 
       <div class="sep"></div>
@@ -394,6 +401,9 @@ document.getElementById('btn-add-question').addEventListener('click', () => {
   form.reset()
   form.question_id.value = ''
   form.question_type.value = round.round_type === 'live_coding' ? 'coding' : 'output_prediction'
+  form.language.value = 'python'
+  applyLang('python')
+  document.getElementById('q-starter-code').value = ''
   document.getElementById('modal-q-title').textContent = 'Add Question'
   document.getElementById('btn-save-question').textContent = 'Add Question'
   testCaseCount = 0
@@ -413,6 +423,9 @@ window.openEditQuestion = id => {
   form.points.value = q.points
   form.order_index.value = q.order_index || 0
   form.starter_code.value = q.starter_code || ''
+  const detectedLang = detectLang(q.starter_code)
+  form.language.value = detectedLang
+  applyLang(detectedLang)
   document.getElementById('modal-q-title').textContent = 'Edit Question'
   document.getElementById('btn-save-question').textContent = 'Save Changes'
   testCaseCount = 0
@@ -588,6 +601,36 @@ async function doExport(finalized) {
 }
 document.getElementById('btn-export')?.addEventListener('click', () => doExport(false))
 document.getElementById('btn-export-final')?.addEventListener('click', () => doExport(true))
+
+// ── Language selector in question modal ──
+const DEFAULT_C_STARTER = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    // your code here\n    return 0;\n}\n`
+const DEFAULT_PY_STARTER = `# Write your solution here\n`
+
+function detectLang(starterCode) {
+  return (starterCode || '').includes('#include') ? 'c' : 'python'
+}
+
+function applyLang(lang) {
+  const label = document.getElementById('starter-code-label')
+  const ta    = document.getElementById('q-starter-code')
+  if (lang === 'c') {
+    label.textContent   = 'Starter Code (C)'
+    ta.placeholder      = DEFAULT_C_STARTER
+  } else {
+    label.textContent   = 'Starter Code (Python)'
+    ta.placeholder      = '# Write your starter code here...'
+  }
+}
+
+document.getElementById('q-language').addEventListener('change', (e) => {
+  const lang = e.target.value
+  applyLang(lang)
+  const ta = document.getElementById('q-starter-code')
+  // Only auto-fill if the textarea is empty or still has the other default
+  if (!ta.value.trim() || ta.value.trim() === DEFAULT_PY_STARTER.trim() || ta.value.trim() === DEFAULT_C_STARTER.trim()) {
+    ta.value = lang === 'c' ? DEFAULT_C_STARTER : DEFAULT_PY_STARTER
+  }
+})
 
 await loadRound()
 </script>

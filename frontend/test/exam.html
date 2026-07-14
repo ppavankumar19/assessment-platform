@@ -364,9 +364,11 @@ async function loadQuestions() {
 
     const now = Date.now()
     questions.forEach(q => {
-      code[q.id]           = q.starter_code || ''
-      langPerQuestion[q.id] = 'python'
-      replays[q.id]        = { startTime: now, snapshots: [{ t:0, code: code[q.id], trigger:'initial' }], runEvents: [] }
+      // Auto-detect language from starter code: C code contains #include
+      const detectedLang    = (q.starter_code || '').includes('#include') ? 'c' : 'python'
+      code[q.id]            = q.starter_code || (detectedLang === 'c' ? DEFAULT_C_CODE : '')
+      langPerQuestion[q.id] = detectedLang
+      replays[q.id]         = { startTime: now, snapshots: [{ t:0, code: code[q.id], trigger:'initial' }], runEvents: [] }
     })
 
     renderQuestion(0)
