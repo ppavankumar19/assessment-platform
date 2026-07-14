@@ -219,6 +219,9 @@ async function loadSession() {
     document.getElementById('pb-session-info').textContent =
       `${session.candidate_email || ''} · ${session.rounds?.title || ''} · Score: ${session.score ?? '—'}`
     document.getElementById('pb-status-badge').innerHTML = statusBadge(session.status)
+    if (session.status === 'disqualified') {
+      document.getElementById('btn-disqualify').disabled = true
+    }
 
     // Populate question selector
     const sel = document.getElementById('pb-question-select')
@@ -350,6 +353,7 @@ document.getElementById('btn-disqualify').addEventListener('click', () => {
       await api.disqualifySession(sessionId)
       toastSuccess('Candidate disqualified')
       document.getElementById('pb-status-badge').innerHTML = '<span class="badge badge-red">Disqualified</span>'
+      document.getElementById('btn-disqualify').disabled = true
     } catch (e) { toastError(e.message) }
   }, 'Disqualify Candidate')
 })
