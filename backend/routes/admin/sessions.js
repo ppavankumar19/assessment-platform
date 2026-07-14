@@ -29,6 +29,12 @@ export default async function adminSessionRoutes(app) {
   // DELETE /api/admin/sessions/:id — delete session
   app.delete('/:id', { preHandler: requireAdmin }, async (request, reply) => {
     const { id } = request.params
+    // Log before deletion (so session_id still exists in audit_logs FK)
+    await db.from('audit_logs').insert({
+      session_id: id,
+      event_type: 'admin_delete_session',
+      event_data: { admin_id: request.user.id, admin_email: request.user.email },
+    })
     // Cascade manually (speed_metrics → submissions → audit_logs → session)
     const { data: subs } = await db.from('submissions').select('id').eq('session_id', id)
     if (subs?.length) {
@@ -52,6 +58,13 @@ export default async function adminSessionRoutes(app) {
       .single()
 
     if (error) return reply.status(400).send({ error: error.message })
+
+    await db.from('audit_logs').insert({
+      session_id: request.params.id,
+      event_type: 'admin_disqualify',
+      event_data: { admin_id: request.user.id, admin_email: request.user.email },
+    })
+
     return reply.send(data)
   })
 }

@@ -1,14 +1,33 @@
 import { db } from '../../lib/db.js'
 import { v4 as uuid } from 'uuid'
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export default async function testRegisterRoutes(app) {
   // POST /api/test/:roundId/register — register a candidate
-  app.post('/:roundId/register', async (request, reply) => {
+  app.post('/:roundId/register', {
+    config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const { roundId } = request.params
     const { candidate_name, candidate_email, college_name, roll_no, branch } = request.body
 
     if (!candidate_name || !candidate_email) {
       return reply.status(400).send({ error: 'candidate_name and candidate_email are required' })
+    }
+    if (candidate_name.trim().length > 100) {
+      return reply.status(400).send({ error: 'candidate_name must be 100 characters or fewer' })
+    }
+    if (!EMAIL_RE.test(candidate_email)) {
+      return reply.status(400).send({ error: 'Invalid email address' })
+    }
+    if (candidate_email.length > 254) {
+      return reply.status(400).send({ error: 'Email address too long' })
+    }
+    if (college_name && college_name.length > 150) {
+      return reply.status(400).send({ error: 'college_name must be 150 characters or fewer' })
+    }
+    if (roll_no && roll_no.length > 30) {
+      return reply.status(400).send({ error: 'roll_no must be 30 characters or fewer' })
     }
 
     // Verify round is published

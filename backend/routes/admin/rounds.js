@@ -97,6 +97,10 @@ export default async function adminRoundRoutes(app) {
       .single()
 
     if (error) return reply.status(400).send({ error: error.message })
+    await db.from('audit_logs').insert({
+      event_type: 'admin_publish_round',
+      event_data: { admin_id: request.user.id, admin_email: request.user.email, round_id: request.params.id, round_title: data.title },
+    })
     return reply.send(data)
   })
 
@@ -110,6 +114,10 @@ export default async function adminRoundRoutes(app) {
       .single()
 
     if (error) return reply.status(400).send({ error: error.message })
+    await db.from('audit_logs').insert({
+      event_type: 'admin_unpublish_round',
+      event_data: { admin_id: request.user.id, admin_email: request.user.email, round_id: request.params.id, round_title: data.title },
+    })
     return reply.send(data)
   })
 
@@ -123,6 +131,10 @@ export default async function adminRoundRoutes(app) {
       .single()
 
     if (error) return reply.status(400).send({ error: error.message })
+    await db.from('audit_logs').insert({
+      event_type: 'admin_pause_round',
+      event_data: { admin_id: request.user.id, admin_email: request.user.email, round_id: request.params.id, round_title: data.title },
+    })
     return reply.send(data)
   })
 

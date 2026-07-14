@@ -13,14 +13,25 @@ import testSubmitRoutes    from './routes/test/submit.js'
 import testExecuteCRoutes  from './routes/test/execute_c.js'
 import testSessionRoutes   from './routes/test/session.js'
 
+const ALLOWED_ORIGINS = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(s => s.trim())
+  : ['http://localhost:4000']
+
 export async function buildApp() {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL || 'warn' },
     trustProxy: true,
   })
 
+  // Maintenance mode — return 503 for all API requests
+  if (process.env.MAINTENANCE_MODE === 'true') {
+    app.addHook('onRequest', async (_req, reply) => {
+      reply.status(503).send({ error: 'Assessment platform is under maintenance. Please try again later.' })
+    })
+  }
+
   await app.register(cors, {
-    origin: process.env.FRONTEND_URL || true,
+    origin: ALLOWED_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   })
@@ -30,6 +41,16 @@ export async function buildApp() {
     max: 200,
     timeWindow: '1 minute',
     errorResponseBuilder: () => ({ error: 'Too many requests. Please slow down.' }),
+  })
+
+  // Global error handler — never expose stack traces to clients
+  app.setErrorHandler((err, _request, reply) => {
+    app.log.error(err)
+    const status = err.statusCode || 500
+    if (status >= 500) {
+      return reply.status(500).send({ error: 'An unexpected error occurred. Please try again.' })
+    }
+    return reply.status(status).send({ error: err.message })
   })
 
   await app.register(authRoutes,          { prefix: '/api/auth' })
