@@ -604,7 +604,7 @@ document.getElementById('btn-export-final')?.addEventListener('click', () => doE
 
 // ── Language selector in question modal ──
 const DEFAULT_C_STARTER = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    // your code here\n    return 0;\n}\n`
-const DEFAULT_PY_STARTER = `# Write your solution here\n`
+const DEFAULT_PY_STARTER = `import sys\ninput = sys.stdin.readline\n\ndef solve():\n    # Write your solution here\n    n = int(input())\n    print(n)\n\nsolve()\n`
 
 function detectLang(starterCode) {
   return (starterCode || '').includes('#include') ? 'c' : 'python'

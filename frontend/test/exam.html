@@ -191,7 +191,8 @@ let selectedLang     = 'python'
 let pendingResults   = null    // test results awaiting user confirm
 let pendingQuestion  = null    // question awaiting user confirm
 
-const DEFAULT_C_CODE = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    // your code here\n    return 0;\n}\n`
+const DEFAULT_C_CODE  = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    // your code here\n    return 0;\n}\n`
+const DEFAULT_PY_CODE = `import sys\ninput = sys.stdin.readline\n\ndef solve():\n    # Write your solution here\n    n = int(input())\n    print(n)\n\nsolve()\n`
 
 // ── Metrics & Replay ──
 const metrics = {}
@@ -347,8 +348,8 @@ document.getElementById('lang-select').addEventListener('change', (e) => {
     code[q.id] = cDefault
     if (editor) editor.setValue(cDefault)
   } else if (newLang === 'python' && (!code[q.id] || !code[q.id].trim() || code[q.id] === DEFAULT_C_CODE)) {
-    code[q.id] = q.starter_code || ''
-    if (editor) editor.setValue(q.starter_code || '')
+    code[q.id] = q.starter_code || DEFAULT_PY_CODE
+    if (editor) editor.setValue(code[q.id])
   }
 
   document.getElementById('lang-label').textContent = newLang === 'c' ? 'C (gcc)' : 'Python 3'
@@ -366,7 +367,7 @@ async function loadQuestions() {
     questions.forEach(q => {
       // Auto-detect language from starter code: C code contains #include
       const detectedLang    = (q.starter_code || '').includes('#include') ? 'c' : 'python'
-      code[q.id]            = q.starter_code || (detectedLang === 'c' ? DEFAULT_C_CODE : '')
+      code[q.id]            = q.starter_code || (detectedLang === 'c' ? DEFAULT_C_CODE : DEFAULT_PY_CODE)
       langPerQuestion[q.id] = detectedLang
       replays[q.id]         = { startTime: now, snapshots: [{ t:0, code: code[q.id], trigger:'initial' }], runEvents: [] }
     })
