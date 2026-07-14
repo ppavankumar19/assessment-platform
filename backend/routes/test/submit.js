@@ -8,8 +8,9 @@ export default async function testSubmitRoutes(app) {
       session_token,
       question_id,
       code,
-      test_results,   // pre-computed by client Pyodide
+      test_results,   // pre-computed by client (Pyodide or server-side C)
       is_final,
+      language_id,    // 71=Python3, 50=C
       speed_metrics,
       typing_replay,  // keystroke snapshot data
     } = request.body
@@ -71,7 +72,7 @@ export default async function testSubmitRoutes(app) {
         question_id,
         user_id:     session.user_id || null,
         code:        code || null,
-        language_id: 71, // Python 3
+        language_id: language_id || 71, // 71=Python3, 50=C
         status:      finalScore > 0 ? finalStatus : 'pending',
         is_final:    is_final || false,
         score:       finalScore,
