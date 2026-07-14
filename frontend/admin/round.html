@@ -484,7 +484,7 @@ function collectTestCases(form) {
       expected_output: form[`tc_expected_${idx}`]?.value || '',
       is_hidden:       form[`tc_hidden_${idx}`]?.value === 'true',
       points:          Number(form[`tc_points_${idx}`]?.value || 0),
-      order_index:     i,
+      order_index:     i + 1,
     })
   })
   return tcs
