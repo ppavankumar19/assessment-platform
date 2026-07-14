@@ -19,6 +19,12 @@ export default async function authRoutes(app) {
       .single()
 
     if (!profile) return reply.status(404).send({ error: 'User not found' })
+
+    // Only admins may use this endpoint (used by admin portal to verify access)
+    if (profile.role !== 'admin') {
+      return reply.status(403).send({ error: 'Admin access required' })
+    }
+
     return reply.send(profile)
   })
 }
