@@ -120,6 +120,49 @@
   </div>
 </div>
 
+<!-- Edit Round Modal -->
+<div class="modal-backdrop" id="modal-edit-round">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Edit Round</span>
+      <button class="modal-close" data-close="modal-edit-round">&times;</button>
+    </div>
+    <form id="form-edit-round">
+      <input type="hidden" name="id">
+      <div class="form-group">
+        <label>Title *</label>
+        <input type="text" class="input" name="title" required>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea class="textarea" name="description"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Type *</label>
+        <select class="select" name="round_type" required>
+          <option value="live_coding">Live Coding</option>
+          <option value="output_prediction">Output Prediction</option>
+          <option value="mcq">MCQ</option>
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Duration (minutes) *</label>
+          <input type="number" class="input" name="duration_minutes" min="5" max="300" required>
+        </div>
+        <div class="form-group">
+          <label>Cutoff Score</label>
+          <input type="number" class="input" name="cutoff_score" placeholder="e.g. 70">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close="modal-edit-round">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-save-round">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Confirm dialog -->
 <div class="modal-backdrop" id="confirm-modal">
   <div class="modal confirm-dialog">
@@ -136,7 +179,7 @@
 
 <script type="module">
 import api from '/js/api.js'
-import { toastSuccess, toastError, openModal, closeModal, confirm, formatDate, roundStatusBadge, roundTypeBadge, timeAgo } from '/js/utils.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, roundStatusBadge, roundTypeBadge, timeAgo } from '/js/utils.js'
 
 const token = localStorage.getItem('admin_token')
 if (!token) { window.location.replace('/login.html'); throw 0 }
@@ -214,6 +257,7 @@ function renderRounds(rounds) {
           <span style="color:var(--text-500)">&middot;</span>
           <span class="text-sm text-muted">${r.duration_minutes} min</span>
           <a href="/admin/round.html?id=${r.id}" class="btn btn-outline btn-sm">Manage</a>
+          <button class="btn btn-ghost btn-sm" onclick="openEditRound(${JSON.stringify(r)})">Edit</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="deleteRound('${r.id}', '${escHtml(r.title)}')">Delete</button>
         </div>
       </div>
@@ -267,6 +311,41 @@ window.deleteRound = (id, title) => {
     }
   }, 'Delete Round')
 }
+
+window.openEditRound = (r) => {
+  const form = document.getElementById('form-edit-round')
+  form.id.value              = r.id
+  form.title.value           = r.title
+  form.description.value     = r.description || ''
+  form.round_type.value      = r.round_type
+  form.duration_minutes.value = r.duration_minutes
+  form.cutoff_score.value    = r.cutoff_score ?? ''
+  openModal('modal-edit-round')
+}
+
+document.getElementById('form-edit-round').addEventListener('submit', async e => {
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  const id = fd.get('id')
+  const btn = document.getElementById('btn-save-round')
+  btn.disabled = true; btn.textContent = 'Saving...'
+  try {
+    await api.updateRound(id, {
+      title:            fd.get('title'),
+      description:      fd.get('description') || null,
+      round_type:       fd.get('round_type'),
+      duration_minutes: Number(fd.get('duration_minutes')),
+      cutoff_score:     fd.get('cutoff_score') ? Number(fd.get('cutoff_score')) : null,
+    })
+    toastSuccess('Round updated')
+    closeModal('modal-edit-round')
+    loadRounds()
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Changes'
+  }
+})
 
 await loadUser()
 await loadRounds()

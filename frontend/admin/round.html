@@ -199,6 +199,10 @@
           <input type="number" class="input" name="duration_minutes" min="5">
         </div>
       </div>
+      <div class="form-group">
+        <label>Cutoff Score</label>
+        <input type="number" class="input" name="cutoff_score" placeholder="e.g. 70 (optional)">
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-close="modal-edit-round">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -330,20 +334,27 @@ function openEditRound() {
   form.description.value = round.description || ''
   form.round_type.value = round.round_type
   form.duration_minutes.value = round.duration_minutes
+  form.cutoff_score.value = round.cutoff_score ?? ''
   openModal('modal-edit-round')
 }
 document.getElementById('form-edit-round').addEventListener('submit', async e => {
   e.preventDefault()
   const fd = new FormData(e.target)
+  const btn = e.target.querySelector('[type=submit]')
+  btn.disabled = true; btn.textContent = 'Saving...'
   try {
     round = await api.updateRound(roundId, {
       title: fd.get('title'), description: fd.get('description'),
       round_type: fd.get('round_type'), duration_minutes: Number(fd.get('duration_minutes')),
+      cutoff_score: fd.get('cutoff_score') ? Number(fd.get('cutoff_score')) : null,
     })
     closeModal('modal-edit-round')
     document.getElementById('round-title').textContent = round.title
+    document.getElementById('round-meta').innerHTML = `${roundStatusBadge(round)} ${roundTypeBadge(round.round_type)} <span class="badge badge-gray">${round.duration_minutes} min</span>`
+    document.getElementById('val-cutoff').textContent = round.cutoff_score ?? '—'
     toastSuccess('Round updated')
   } catch (err) { toastError(err.message) }
+  finally { btn.disabled = false; btn.textContent = 'Save Changes' }
 })
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
