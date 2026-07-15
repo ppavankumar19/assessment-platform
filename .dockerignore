@@ -1,0 +1,6 @@
+backend/.env
+backend/node_modules
+**/.git
+**/node_modules
+src/
+*.md
