@@ -1,4 +1,5 @@
 import { db } from '../../lib/db.js'
+import { normalizeOutput } from '../../lib/scoring.js'
 import { exec, spawn } from 'child_process'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -43,10 +44,6 @@ function runBinary(binFile, input) {
       resolve({ stdout: '', stderr: String(err), elapsed: Date.now() - start, killed: false })
     })
   })
-}
-
-function normalizeOutput(raw) {
-  return String(raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
 }
 
 // Check once at startup whether gcc is available on this machine
