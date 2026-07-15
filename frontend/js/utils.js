@@ -181,9 +181,10 @@ export function roundStatusBadge(round) {
 
 export function roundTypeBadge(type) {
   const map = {
-    live_coding:       ['indigo', 'Live Coding'],
-    output_prediction: ['blue',   'Output Prediction'],
-    mcq:               ['gray',   'MCQ'],
+    live_coding:       ['indigo',  'Live Coding'],
+    output_prediction: ['blue',    'Output Prediction'],
+    mcq:               ['gray',    'MCQ'],
+    c_programming:     ['orange',  'C Programming'],
   }
   const [color, label] = map[type] || ['gray', type]
   return `<span class="badge badge-${color}">${label}</span>`

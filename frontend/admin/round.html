@@ -190,6 +190,7 @@
           <label>Type</label>
           <select class="select" name="round_type">
             <option value="live_coding">Live Coding</option>
+            <option value="c_programming">C Programming</option>
             <option value="output_prediction">Output Prediction</option>
             <option value="mcq">MCQ</option>
           </select>
@@ -411,10 +412,11 @@ document.getElementById('btn-add-question').addEventListener('click', () => {
   const form = document.getElementById('form-question')
   form.reset()
   form.question_id.value = ''
-  form.question_type.value = round.round_type === 'live_coding' ? 'coding' : 'output_prediction'
+  form.question_type.value = (round.round_type === 'live_coding' || round.round_type === 'c_programming') ? 'coding' : 'output_prediction'
   form.order_index.value = (round.questions?.length || 0) + 1
-  form.language.value = 'python'
-  applyLang('python')
+  const defaultLang = round.round_type === 'c_programming' ? 'c' : 'python'
+  form.language.value = defaultLang
+  applyLang(defaultLang)
   document.getElementById('q-starter-code').value = ''
   document.getElementById('modal-q-title').textContent = 'Add Question'
   document.getElementById('btn-save-question').textContent = 'Add Question'
