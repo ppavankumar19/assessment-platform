@@ -46,7 +46,7 @@ CREATE TABLE rounds (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   title            TEXT        NOT NULL,
   description      TEXT,
-  round_type       TEXT        NOT NULL CHECK (round_type IN ('live_coding', 'output_prediction', 'mcq')),
+  round_type       TEXT        NOT NULL CHECK (round_type IN ('live_coding', 'output_prediction', 'c_programming', 'mcq')),
   duration_minutes INT         NOT NULL CHECK (duration_minutes > 0),
   is_published     BOOLEAN     NOT NULL DEFAULT FALSE,
   is_active        BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -191,7 +191,15 @@ SELECT
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
 
--- ── 8. Set admin account ─────────────────────────────────────────
+-- ── 8. Fix round_type constraint if upgrading an existing install ─
+-- If you already ran an earlier version of this migration (before c_programming
+-- was added), run these two statements to update the live constraint:
+--
+-- ALTER TABLE rounds DROP CONSTRAINT IF EXISTS rounds_round_type_check;
+-- ALTER TABLE rounds ADD CONSTRAINT rounds_round_type_check
+--   CHECK (round_type IN ('live_coding', 'output_prediction', 'c_programming', 'mcq'));
+
+-- ── 9. Set admin account ─────────────────────────────────────────
 -- Only this email gets admin access; everyone else is 'candidate'.
 -- Replace the email below with the exact Google/magic-link email used to sign in.
 UPDATE users SET role = 'admin' WHERE email = '029pavankumar.ponnuri@gmail.com';

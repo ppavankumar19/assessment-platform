@@ -129,10 +129,10 @@ FRONTEND_URL=http://localhost:4000
 ```
 
 ### 3. Configure Supabase credentials in the login page
-Open `frontend/login.html` and replace the two placeholder strings:
+Open `frontend/login.html` and update the two constants near the top of the `<script>` block:
 ```js
-const SUPABASE_URL  = '__SUPABASE_URL__'
-const SUPABASE_ANON = '__SUPABASE_ANON_KEY__'
+const SUPABASE_URL  = 'https://your-project.supabase.co'
+const SUPABASE_ANON = 'your-anon-key'
 ```
 
 In Supabase Dashboard → Authentication → URL Configuration, set:

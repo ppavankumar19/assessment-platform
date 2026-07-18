@@ -581,7 +581,7 @@ function renderSessions() {
       <td>
         <div class="flex items-center gap-1">
           <a href="/admin/playback.html?session=${s.id}" class="btn btn-icon" title="View replay">&#9654;</a>
-          <button class="btn btn-icon warning" title="Disqualify" onclick="disqualifySession('${s.id}','${escHtml(s.candidate_name||'')}')">&#9888;</button>
+          <button class="btn btn-icon warning" title="Disqualify" onclick="disqualifySession('${s.id}','${escHtml(s.candidate_name||'')}')"${s.status === 'disqualified' ? ' disabled' : ''}>&#9888;</button>
           <button class="btn btn-icon danger" title="Delete" onclick="deleteSession('${s.id}','${escHtml(s.candidate_name||'')}')">&#128465;</button>
         </div>
       </td>
