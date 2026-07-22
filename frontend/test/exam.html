@@ -7,41 +7,125 @@
   <link rel="stylesheet" href="/css/app.css">
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
   <style>
+    /* ── Exam-specific ── */
     .q-dot[disabled] { cursor: not-allowed !important; opacity: .55; pointer-events: none; }
-    .q-dot.submitted { background: rgba(4,120,87,.1); color: var(--green-600); border-color: rgba(4,120,87,.25); }
-    .preview-summary {
+    .q-dot.answered  { background: rgba(4,120,87,.1); color: var(--green-600); border-color: rgba(4,120,87,.25); }
+    .q-dot.submitted { background: rgba(37,99,235,.12); color: var(--indigo-600); border-color: rgba(37,99,235,.3); }
+
+    /* Left panel sections */
+    .left-code-area {
+      flex: 0 0 75%;
+      min-height: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      margin-bottom: .75rem;
+    }
+    .left-tc-area {
+      flex: 0 0 25%;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .exam-panel-left-inner {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .exam-panel-left {
+      overflow: hidden !important;
+    }
+
+    /* MCQ options */
+    .mcq-option {
+      display: flex; align-items: flex-start; gap: .875rem;
+      padding: .875rem 1rem; border-radius: var(--radius-lg);
+      border: 2px solid var(--border); cursor: pointer;
+      transition: all .15s; margin-bottom: .5rem;
+      background: var(--bg-800);
+    }
+    .mcq-option:hover { border-color: var(--indigo-500); background: rgba(37,99,235,.03); }
+    .mcq-option.selected { border-color: var(--indigo-500); background: rgba(37,99,235,.06); }
+    .mcq-option.correct  { border-color: var(--green-500); background: rgba(5,150,105,.06); }
+    .mcq-option.wrong    { border-color: var(--red-400); background: rgba(220,38,38,.04); }
+    .mcq-label {
+      width: 1.75rem; height: 1.75rem; border-radius: var(--radius-full);
+      background: var(--bg-750); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8125rem; font-weight: 700; flex-shrink: 0;
+      color: var(--text-400); transition: all .15s;
+    }
+    .mcq-option.selected .mcq-label { background: var(--indigo-600); border-color: var(--indigo-600); color: #fff; }
+    .mcq-option.correct  .mcq-label { background: var(--green-600); border-color: var(--green-600); color: #fff; }
+    .mcq-option.wrong    .mcq-label { background: var(--red-500); border-color: var(--red-500); color: #fff; }
+    .mcq-option-text { font-size: .9375rem; line-height: 1.5; color: var(--text-100); padding-top: .1rem; }
+
+    /* Output prediction */
+    .pred-case {
+      background: var(--bg-800); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: .875rem; margin-bottom: .625rem;
+    }
+    .pred-case-header {
+      font-size: .75rem; font-weight: 600; color: var(--text-400);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5rem;
       display: flex; align-items: center; justify-content: space-between;
-      padding: .875rem 1rem; border-radius: var(--radius-lg); margin-bottom: .875rem;
     }
-    .preview-summary .score { font-size: 1.375rem; font-weight: 700; line-height: 1; }
-    .preview-summary .meta  { font-size: .75rem; color: var(--text-400); margin-top: .2rem; }
-    .preview-summary .badge-counts { font-size: .8125rem; color: var(--text-300); }
-    .lang-select-wrap { position: relative; }
-    #lang-select {
-      appearance: none; cursor: pointer; background: var(--bg-750);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      color: var(--text-200); padding: .25rem 1.75rem .25rem .625rem;
-      font-size: .8rem; font-family: 'JetBrains Mono', monospace;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right .45rem center;
+    .pred-input-disp {
+      background: var(--bg-750); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: .375rem .625rem; font-family: 'JetBrains Mono', monospace;
+      font-size: .8125rem; color: var(--text-300); white-space: pre-wrap;
+      max-height: 4rem; overflow-y: auto; margin-bottom: .5rem;
     }
-    #lang-select:focus { outline: none; border-color: var(--indigo-500); box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
-    #lang-select option { background: var(--bg-800); }
+    .pred-textarea {
+      width: 100%; padding: .5rem .75rem;
+      border: 1.5px solid var(--border); border-radius: var(--radius);
+      font-family: 'JetBrains Mono', monospace; font-size: .8125rem;
+      background: var(--bg-800); color: var(--text-100); resize: vertical;
+      min-height: 3rem; outline: none; transition: border-color .15s;
+    }
+    .pred-textarea:focus { border-color: var(--indigo-500); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .pred-textarea:disabled { opacity: .65; background: var(--bg-750); }
+    .pred-result-match { color: var(--green-600); font-weight: 600; font-size: .8125rem; }
+    .pred-result-miss  { color: var(--red-500);   font-weight: 600; font-size: .8125rem; }
+
+    /* Right panel toolbar */
+    .answer-panel-header {
+      padding: .625rem .875rem;
+      background: var(--bg-800); border-bottom: 1px solid var(--border);
+      font-size: .8125rem; font-weight: 600; color: var(--text-300);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    /* Result summary bar */
+    .result-summary {
+      padding: .625rem .875rem;
+      border-radius: var(--radius);
+      font-size: .875rem; font-weight: 600;
+      margin-bottom: .75rem; display: flex; align-items: center; gap: .625rem;
+    }
+
+    /* tc count strip */
+    .tc-count-strip {
+      display: flex; gap: .5rem; flex-wrap: wrap;
+      padding: .5rem .875rem;
+      background: var(--bg-750); border-top: 1px solid var(--border);
+      font-size: .75rem; flex-shrink: 0;
+    }
+
+    .hidden { display:none !important; }
+
+    /* Locked overlay */
     .locked-overlay {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(255,255,255,.75); backdrop-filter: blur(2px); z-index: 5;
+      background: rgba(255,255,255,.8); backdrop-filter: blur(2px); z-index: 5;
       border-radius: var(--radius); font-size: .875rem; color: var(--text-400);
       flex-direction: column; gap: .5rem; pointer-events: none;
     }
-    .compile-err-box {
-      background: rgba(220,38,38,.04); border: 1px solid rgba(220,38,38,.2);
-      border-radius: var(--radius); padding: .75rem; margin-bottom: .75rem;
-      font-family: 'JetBrains Mono', monospace; font-size: .75rem;
-      color: var(--red-500); white-space: pre-wrap; max-height: 8rem; overflow-y: auto;
-    }
   </style>
 </head>
-<body oncontextmenu="return false">
+<body>
 <div class="exam-layout">
 
   <!-- Top bar -->
@@ -54,9 +138,7 @@
         </div>
         <div style="width:1px;height:1.125rem;background:var(--border)"></div>
         <span class="badge badge-indigo" id="q-progress">Q 1 / 1</span>
-        <span id="lang-status" class="flex items-center gap-1" style="font-size:.75rem;color:var(--amber-400)">
-          <span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span> Loading Python...
-        </span>
+        <span class="badge badge-gray" id="round-type-badge">—</span>
       </div>
       <div class="flex items-center gap-2">
         <span class="badge badge-gray" id="q-points">—</span>
@@ -73,51 +155,60 @@
   <!-- Main split -->
   <div class="exam-main">
 
-    <!-- Left: problem statement -->
-    <div class="exam-panel-left">
-      <h2 class="mb-2" id="q-title" style="font-size:1.125rem">Loading...</h2>
-      <p class="text-sm mb-4" id="q-desc" style="white-space:pre-wrap;line-height:1.65;color:var(--text-300)"></p>
-      <div id="tc-container"></div>
-      <div class="q-dots" id="q-dots"></div>
+    <!-- Left: problem statement (and code for OP) -->
+    <div class="exam-panel-left" id="exam-panel-left">
+      <div class="exam-panel-left-inner">
+        <!-- Question header (always visible) -->
+        <div style="flex-shrink:0;padding:1rem 1.25rem .75rem;border-bottom:1px solid var(--border)">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="badge badge-gray" id="q-num-badge" style="font-size:.75rem">Q1</span>
+            <h2 id="q-title" style="font-size:1.0625rem;font-weight:600;color:var(--text-50);line-height:1.3">Loading...</h2>
+          </div>
+          <p id="q-desc" class="text-sm" style="color:var(--text-300);line-height:1.65;white-space:pre-wrap;margin-top:.375rem"></p>
+        </div>
+
+        <!-- Code area (Output Prediction only) — 75% height -->
+        <div class="left-code-area" id="code-area-wrap" style="flex:3;display:flex;flex-direction:column;margin:.75rem .875rem 0">
+          <div style="background:var(--bg-750);border-bottom:1px solid var(--border);padding:.375rem .75rem;font-size:.75rem;font-weight:600;color:var(--text-400);letter-spacing:.05em;text-transform:uppercase;flex-shrink:0">Code Snippet</div>
+          <div id="code-editor-container" style="flex:1;min-height:0"></div>
+          <div class="locked-overlay hidden" id="code-locked"></div>
+        </div>
+
+        <!-- Visible test case inputs (Output Prediction only) — 25% -->
+        <div class="left-tc-area" id="tc-inputs-wrap" style="flex:1;padding:.5rem .875rem .75rem">
+          <div style="font-size:.6875rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.375rem">Test Inputs</div>
+          <div id="tc-inputs-list"></div>
+        </div>
+
+        <!-- MCQ only: description block (no code) -->
+        <div id="mcq-left-body" class="hidden" style="flex:1;overflow-y:auto;padding:.75rem 1.25rem"></div>
+
+        <!-- Question dots (always at bottom) -->
+        <div style="flex-shrink:0;padding:.625rem 1rem;border-top:1px solid var(--border)">
+          <div class="q-dots" id="q-dots"></div>
+        </div>
+      </div>
     </div>
 
-    <!-- Right: editor + output -->
-    <div class="exam-panel-right">
-      <!-- Editor toolbar -->
-      <div class="editor-toolbar">
-        <div class="flex items-center gap-2">
-          <div class="editor-lang-badge" id="lang-badge">
-            <span style="display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--indigo-400)" id="lang-dot"></span>
-            <span id="lang-label">Python 3</span>
-          </div>
-          <div class="lang-select-wrap">
-            <select id="lang-select" title="Select language">
-              <option value="python">Python 3</option>
-              <option value="c">C (gcc)</option>
-            </select>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button class="btn btn-ghost btn-sm" id="btn-run" disabled>&#9654; Run</button>
-          <button class="btn btn-success btn-sm" id="btn-submit" disabled>&#10003; Submit</button>
-        </div>
+    <!-- Right: answer area -->
+    <div class="exam-panel-right" id="exam-panel-right">
+      <div class="answer-panel-header" id="answer-panel-header">
+        <span id="answer-label">Your Answer</span>
+        <span id="answer-status" style="font-size:.8125rem;color:var(--text-400)"></span>
       </div>
 
-      <!-- Monaco Editor -->
-      <div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column;">
-        <div class="editor-area" id="editor-container"></div>
-        <div class="locked-overlay hidden" id="locked-overlay">
-          <span style="font-size:1.25rem">&#128274;</span>
-          <span>Question submitted &amp; locked</span>
-        </div>
+      <!-- MCQ answer area -->
+      <div id="mcq-answer-area" class="hidden" style="flex:1;overflow-y:auto;padding:1rem .875rem">
+        <div id="mcq-options-list"></div>
+        <button class="btn btn-success w-full mt-4" id="btn-submit-mcq" style="padding:.625rem">&#10003; Submit Answer</button>
+        <div id="mcq-result-area" class="mt-3"></div>
       </div>
 
-      <!-- Output panel -->
-      <div class="output-panel">
-        <div class="output-label">Output</div>
-        <div id="output-content">
-          <p style="font-size:.875rem;color:var(--text-500)">Click Run to test your code against visible test cases.</p>
-        </div>
+      <!-- Output Prediction answer area -->
+      <div id="op-answer-area" class="hidden" style="flex:1;overflow-y:auto;padding:1rem .875rem">
+        <div id="op-pred-list"></div>
+        <button class="btn btn-success w-full mt-3" id="btn-submit-op" style="padding:.625rem">&#10003; Submit Predictions</button>
+        <div id="op-result-area" class="mt-3"></div>
       </div>
     </div>
   </div>
@@ -132,27 +223,13 @@
   </div>
 </div>
 
-<!-- Test Results Preview Modal — shown before confirming submit -->
-<div class="modal-backdrop" id="modal-preview">
-  <div class="modal" style="max-width:520px">
-    <div class="modal-header">
-      <span class="modal-title" id="preview-title">&#128202; Test Results</span>
-    </div>
-    <div id="preview-content" style="max-height:55vh;overflow-y:auto;padding-right:.25rem"></div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" id="modal-preview-cancel">Cancel — Keep Editing</button>
-      <button class="btn btn-success" id="modal-preview-confirm">&#10003; Confirm &amp; Submit</button>
-    </div>
-  </div>
-</div>
-
 <!-- Finish Assessment confirm -->
 <div class="modal-backdrop" id="modal-finish">
   <div class="modal" style="max-width:420px">
     <div class="modal-header">
       <span class="modal-title">Finish Assessment?</span>
     </div>
-    <div class="info-box warning mb-4" style="font-size:.875rem;" id="finish-warning"></div>
+    <div class="info-box warning mb-4" style="font-size:.875rem;padding:.75rem 1rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:var(--amber-500);border-radius:var(--radius);line-height:1.6" id="finish-warning"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="modal-finish-cancel">Cancel</button>
       <button class="btn btn-danger" id="modal-finish-ok">&#10003; Finish Assessment</button>
@@ -175,224 +252,73 @@ if (!session?.session_id || !session?.expires_at) {
 }
 
 // ── State ──
-let questions        = []
-let currentIdx       = 0
-let code             = {}      // {qid: string}
-let langPerQuestion  = {}      // {qid: 'python'|'c'}
-let submitted        = new Set()
-let runResults       = {}      // {qid: result[]}
-let editor           = null
-let pythonReady      = false
-let cNotSupported    = false   // true once server returns 501 for C execution
-let running          = false
-let submitting       = false
-let hasCompleted     = false
-let isSubmitting     = false
-let selectedLang     = 'python'
-let pendingResults   = null    // test results awaiting user confirm
-let pendingQuestion  = null    // question awaiting user confirm
+let questions     = []
+let currentIdx    = 0
+let answers       = {}   // {qid: {type:'mcq', selected:'A'} | {type:'op', predictions:{caseId: text}}}
+let submitted     = new Set()
+let results       = {}   // {qid: server response}
+let hasCompleted  = false
+let isSubmitting  = false
+let monacoEditor  = null
+let monacoReady   = false
 
-const DEFAULT_C_CODE  = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    // your code here\n    return 0;\n}\n`
-const DEFAULT_PY_CODE = `import sys\ninput = sys.stdin.readline\n\ndef solve():\n    # Write your solution here\n    n = int(input())\n    print(n)\n\nsolve()\n`
+const roundType = session.round_type || 'output_prediction'
 
-// ── Metrics & Replay ──
-const metrics = {}
-const replays = {}
-
-function initMetrics(qid) {
-  if (!metrics[qid]) metrics[qid] = {
-    keystrokes: 0, deletes: 0, pastes: 0, firstKey: null,
-    startTime: Date.now(), idlePeriods: [], idleStart: null, lastActivity: Date.now()
-  }
-}
-function buildMetricsPayload(qid) {
-  const m    = metrics[qid] || { keystrokes:0, deletes:0, pastes:0, firstKey:null, startTime:Date.now(), idlePeriods:[] }
-  const idle = m.idlePeriods.reduce((s,p) => s + (p.end_ms - p.start_ms), 0)
-  return {
-    total_keystrokes:     m.keystrokes,
-    paste_count:          m.pastes,
-    delete_count:         m.deletes,
-    time_to_first_key_ms: m.firstKey ? m.firstKey - m.startTime : null,
-    total_active_time_ms: Math.max(0, Date.now() - m.startTime - idle),
-    idle_periods:         m.idlePeriods,
-  }
-}
-
-// ── Pyodide Worker ──
-const worker           = new Worker('/js/pyodide-worker.js')
-const pendingCallbacks = new Map()
-
-worker.onmessage = e => {
-  const d = e.data
-  if (d.type === 'ready') {
-    pythonReady = true
-    updateLangStatus()
-    updateButtons()
-  } else if (d.type === 'error') {
-    document.getElementById('lang-status').innerHTML =
-      '<span style="color:var(--red-400)">&#9679; Python load failed</span>'
-  } else if (d.type === 'result') {
-    const cb = pendingCallbacks.get(d.id)
-    if (cb) { cb(d.results); pendingCallbacks.delete(d.id) }
-  }
-}
-worker.onerror = () => {
-  document.getElementById('lang-status').innerHTML =
-    '<span style="color:var(--red-400)">&#9679; Python error</span>'
-}
-
-function updateLangStatus() {
-  const el = document.getElementById('lang-status')
-  if (selectedLang === 'c' && cNotSupported) {
-    el.innerHTML = '<span style="color:var(--amber-500)">&#9888; C not available on this server</span>'
-  } else if (selectedLang === 'c') {
-    el.innerHTML = '<span style="color:var(--green-400)">&#9679; C (gcc) Ready</span>'
-  } else if (pythonReady) {
-    el.innerHTML = '<span style="color:var(--green-400)">&#9679; Python Ready</span>'
-  } else {
-    el.innerHTML = '<span style="color:var(--amber-400)"><span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:4px"></span> Loading Python...</span>'
-  }
-}
-
-function runPython(codeStr, testCases) {
-  return new Promise(resolve => {
-    const id      = `${Date.now()}-${Math.random()}`
-    const timeout = setTimeout(() => {
-      pendingCallbacks.delete(id)
-      resolve(testCases.map(tc => ({
-        case_id: tc.id, passed: false, stdout: '', stderr: 'Time limit exceeded',
-        status: 'TLE', time_ms: 10000, score: 0,
-        is_hidden: tc.is_hidden || false, expected_output: tc.expected_output || '',
-      })))
-    }, 15000)
-    pendingCallbacks.set(id, results => { clearTimeout(timeout); resolve(results) })
-    worker.postMessage({ id, code: codeStr, testCases })
-  })
-}
-
-async function runC(codeStr, testCases) {
-  const res = await fetch('/api/test/execute-c', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_token: session.session_token, code: codeStr, test_cases: testCases }),
-  })
-  const data = await res.json()
-  if (res.status === 501) {
-    cNotSupported = true
-    updateLangStatus()
-    // Return fake results so the output panel shows the explanation inline
-    return (testCases || []).map(tc => ({
-      case_id: tc.id, passed: false, stdout: '', stderr: '',
-      status: 'Unavailable', time_ms: 0, score: 0,
-      is_hidden: tc.is_hidden || false, expected_output: tc.expected_output || '',
-      _unavailable: true,
-    }))
-  }
-  if (!res.ok) throw new Error(data.error || `Server error: HTTP ${res.status}`)
-  return data.results || []
-}
-
-function runCode(codeStr, testCases) {
-  return selectedLang === 'c' ? runC(codeStr, testCases) : runPython(codeStr, testCases)
-}
-
-// ── Monaco Init ──
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
-require(['vs/editor/editor.main'], () => {
-  editor = monaco.editor.create(document.getElementById('editor-container'), {
-    value: '',
-    language: 'python',
-    theme: 'vs',
-    fontSize: 14,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    wordWrap: 'on',
-    lineNumbers: 'on',
-    padding: { top: 12 },
-    contextmenu: false,
-    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    fontLigatures: true,
-  })
-
-  editor.onDidChangeModelContent(() => {
-    const q = questions[currentIdx]
-    if (!q || submitted.has(q.id)) return
-    const val = editor.getValue()
-    initMetrics(q.id)
-    const m = metrics[q.id]
-    if (!m.firstKey) m.firstKey = Date.now()
-    m.keystrokes++
-    code[q.id] = val
-  })
-
-  editor.onDidPaste(() => {
-    const q = questions[currentIdx]
-    if (!q) return
-    initMetrics(q.id)
-    metrics[q.id].pastes++
-    const replay = replays[q.id]
-    if (replay) {
-      navigator.clipboard?.readText?.().then(text => {
-        replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'paste', pastedContent: text })
-      }).catch(() => {
-        replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'paste' })
-      })
+// ── Auto fullscreen ──
+;(async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen()
     }
+  } catch {}
+})()
+
+// ── Monaco for code display (Output Prediction) ──
+if (roundType === 'output_prediction') {
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
+  require(['vs/editor/editor.main'], () => {
+    monacoEditor = monaco.editor.create(document.getElementById('code-editor-container'), {
+      value:               '// Loading...',
+      language:            'python',
+      theme:               'vs',
+      fontSize:            13,
+      minimap:             { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap:            'on',
+      lineNumbers:         'on',
+      readOnly:            true,
+      padding:             { top: 8 },
+      contextmenu:         true,
+      copyWithSyntaxHighlighting: false,
+      fontFamily:          "'JetBrains Mono', 'Fira Code', monospace",
+      fontLigatures:       true,
+    })
+    monacoReady = true
+    // Render current question once editor is ready
+    if (questions.length) renderQuestion(currentIdx)
   })
-
-  loadQuestions()
-})
-
-// ── Language selector ──
-document.getElementById('lang-select').addEventListener('change', (e) => {
-  if (running || submitting) { e.target.value = selectedLang; return }
-  const q = questions[currentIdx]
-  if (!q || submitted.has(q.id)) { e.target.value = selectedLang; return }
-
-  const newLang = e.target.value
-  selectedLang = newLang
-  langPerQuestion[q.id] = newLang
-
-  if (editor) monaco.editor.setModelLanguage(editor.getModel(), newLang === 'c' ? 'c' : 'python')
-
-  // Auto-populate default code when switching to C on an empty/starter-code editor
-  if (newLang === 'c' && (!code[q.id] || !code[q.id].trim() || code[q.id] === (q.starter_code || ''))) {
-    const cDefault = (q.starter_code && q.starter_code.includes('#include')) ? q.starter_code : DEFAULT_C_CODE
-    code[q.id] = cDefault
-    if (editor) editor.setValue(cDefault)
-  } else if (newLang === 'python' && (!code[q.id] || !code[q.id].trim() || code[q.id] === DEFAULT_C_CODE)) {
-    code[q.id] = q.starter_code || DEFAULT_PY_CODE
-    if (editor) editor.setValue(code[q.id])
-  }
-
-  document.getElementById('lang-label').textContent = newLang === 'c' ? 'C (gcc)' : 'Python 3'
-  updateLangStatus()
-  updateButtons()
-  // If already know C isn't available, show warning immediately in output panel
-  if (newLang === 'c' && cNotSupported) renderOutput(q.id)
-})
+} else {
+  // MCQ: hide code area
+  document.getElementById('code-area-wrap').style.display = 'none'
+  document.getElementById('tc-inputs-wrap').style.display = 'none'
+  document.getElementById('mcq-left-body').classList.remove('hidden')
+  monacoReady = true
+}
 
 // ── Load questions ──
 async function loadQuestions() {
   try {
     questions = await api.getQuestions(roundId, session.session_token)
     if (!questions.length) { toastError('No questions available'); return }
-
-    const now = Date.now()
-    questions.forEach(q => {
-      // Auto-detect language from starter code: C code contains #include
-      const detectedLang    = (q.starter_code || '').includes('#include') ? 'c' : 'python'
-      code[q.id]            = q.starter_code || (detectedLang === 'c' ? DEFAULT_C_CODE : DEFAULT_PY_CODE)
-      langPerQuestion[q.id] = detectedLang
-      replays[q.id]         = { startTime: now, snapshots: [{ t:0, code: code[q.id], trigger:'initial' }], runEvents: [] }
-    })
-
     renderQuestion(0)
     renderDots()
     startTimer()
     startStatusPoller()
-    startPeriodicSnapshots()
     updateButtons()
+
+    // Set round type badge
+    const rtLabel = roundType === 'mcq' ? 'MCQ' : 'Output Prediction'
+    document.getElementById('round-type-badge').textContent = rtLabel
   } catch (e) {
     toastError('Failed to load questions: ' + e.message)
   }
@@ -401,172 +327,318 @@ async function loadQuestions() {
 // ── Render question ──
 function renderQuestion(idx) {
   currentIdx = idx
-  const q    = questions[idx]
+  const q = questions[idx]
   if (!q) return
 
   document.getElementById('q-title').textContent    = q.title
   document.getElementById('q-desc').textContent     = q.description || ''
   document.getElementById('q-points').textContent   = `${q.points} pts`
   document.getElementById('q-progress').textContent = `Q ${idx+1} / ${questions.length}`
+  document.getElementById('q-num-badge').textContent = `Q${idx+1}`
   document.getElementById('q-progress-bar').style.width = `${((idx+1)/questions.length)*100}%`
 
-  // Sync language selector to this question's saved language
-  const lang = langPerQuestion[q.id] || 'python'
-  selectedLang = lang
-  document.getElementById('lang-select').value = lang
-  document.getElementById('lang-label').textContent = lang === 'c' ? 'C (gcc)' : 'Python 3'
-  updateLangStatus()
-
-  // Visible test cases
-  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
-  const hidden  = (q.test_cases?.length || 0) - visible.length
-  const tcContainer = document.getElementById('tc-container')
-  if (visible.length > 0) {
-    tcContainer.innerHTML = `
-      <div style="font-size:.75rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.625rem;">
-        Sample Cases (${visible.length} visible${hidden > 0 ? `, ${hidden} hidden` : ''})
-      </div>
-      <div style="display:flex;flex-direction:column;gap:.5rem">
-        ${visible.map((tc,i) => `
-          <div class="test-case-card">
-            <div class="io-label" style="margin-bottom:.375rem">Case ${i+1}</div>
-            <div class="test-case-io">
-              <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
-              <div><div class="io-label">Expected</div><div class="io-value">${escHtml(tc.expected_output)}</div></div>
-            </div>
-          </div>`).join('')}
-      </div>`
-  } else {
-    tcContainer.innerHTML = ''
-  }
-
   const isLocked = submitted.has(q.id)
-  if (editor) {
-    editor.setValue(code[q.id] || '')
-    editor.updateOptions({ readOnly: isLocked })
-    monaco.editor.setModelLanguage(editor.getModel(), lang === 'c' ? 'c' : 'python')
-  }
-  document.getElementById('locked-overlay').classList.toggle('hidden', !isLocked)
+  document.getElementById('answer-status').textContent = isLocked ? '&#128274; Locked' : ''
 
-  renderOutput(q.id)
+  if (q.question_type === 'mcq') {
+    renderMCQQuestion(q, isLocked)
+  } else {
+    renderOPQuestion(q, isLocked)
+  }
+
   updateButtons()
   updateDots()
 }
 
 function escHtml(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 }
 
-function renderOutput(qid) {
-  const results = runResults[qid] || []
-  const el      = document.getElementById('output-content')
-  if (!results.length) {
-    if (cNotSupported && selectedLang === 'c') {
-      el.innerHTML = `<div style="padding:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);color:var(--amber-500);font-size:.875rem;line-height:1.5">
-        <strong>C execution is not available on this deployment.</strong><br>
-        This server does not have gcc installed. Switch to <strong>Python 3</strong> to run your code here.
-      </div>`
-      return
+function renderMCQQuestion(q, isLocked) {
+  // Show MCQ areas
+  document.getElementById('mcq-answer-area').classList.remove('hidden')
+  document.getElementById('op-answer-area').classList.add('hidden')
+  document.getElementById('code-area-wrap').style.display = 'none'
+  document.getElementById('tc-inputs-wrap').style.display = 'none'
+  document.getElementById('mcq-left-body').classList.remove('hidden')
+  document.getElementById('mcq-left-body').innerHTML = ''  // nothing extra on left for MCQ
+
+  const opts = q.mcq_options || []
+  const savedAns = answers[q.id]?.selected || null
+  const result   = results[q.id]
+
+  document.getElementById('answer-label').textContent = 'Select your answer'
+  document.getElementById('btn-submit-mcq').classList.toggle('hidden', isLocked)
+
+  const list = document.getElementById('mcq-options-list')
+  list.innerHTML = opts.map(opt => {
+    let cls = 'mcq-option'
+    if (isLocked && result) {
+      if (result.test_results?.is_correct && savedAns === opt.label) cls += ' correct'
+      else if (!result.test_results?.is_correct && savedAns === opt.label) cls += ' wrong'
+    } else if (savedAns === opt.label) {
+      cls += ' selected'
     }
-    const waiting = selectedLang === 'python' ? !pythonReady : false
-    el.innerHTML  = `<p style="font-size:.875rem;color:var(--text-500)">${waiting ? 'Loading Python runtime...' : 'Click Run to test your code.'}</p>`
-    return
+    return `
+      <div class="${cls}" data-option="${opt.label}" ${isLocked ? '' : 'onclick="selectMCQ(this)"'}>
+        <div class="mcq-label">${escHtml(opt.label)}</div>
+        <div class="mcq-option-text">${escHtml(opt.text)}</div>
+      </div>`
+  }).join('')
+
+  const resultArea = document.getElementById('mcq-result-area')
+  if (isLocked && result) {
+    const correct = result.test_results?.is_correct
+    resultArea.innerHTML = correct
+      ? `<div class="result-summary" style="background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);color:var(--green-600)">&#10004; Correct! <span style="margin-left:auto;font-size:.875rem">+${result.score} pts</span></div>`
+      : `<div class="result-summary" style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);color:var(--red-500)">&#10008; Incorrect <span style="margin-left:auto;font-size:.875rem">0 pts</span></div>`
+  } else {
+    resultArea.innerHTML = ''
   }
-  // If all results are flagged as unavailable (C on non-gcc server)
-  if (results[0]?._unavailable) {
-    el.innerHTML = `<div style="padding:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);color:var(--amber-500);font-size:.875rem;line-height:1.5">
-      <strong>C execution is not available on this deployment.</strong><br>
-      This server does not have gcc installed. Switch to <strong>Python 3</strong> to run and submit your code.
-    </div>`
-    return
-  }
-  el.innerHTML = results.map((r,i) => `
-    <div class="result-item">
-      <div class="${r.passed ? 'result-pass' : 'result-fail'}">
-        ${r.passed ? '&#10004;' : '&#10008;'} Case ${i+1}: ${r.status}
-        <span style="font-weight:400;font-size:.8125rem;opacity:.7">(${r.time_ms}ms)</span>
-      </div>
-      ${!r.passed ? `
-        <div class="result-detail">
-          ${r.stdout ? `<pre class="got">Got: ${escHtml(r.stdout.trim())}</pre>` : ''}
-          ${r.stderr ? `<pre class="err">${escHtml(r.stderr.trim())}</pre>` : ''}
-          ${r.status !== 'Compilation Error' ? `<pre class="exp">Expected: ${escHtml(r.expected_output)}</pre>` : ''}
-        </div>` : ''}
-    </div>`).join('')
 }
 
-// ── Navigation helpers ──
-function findPrevUnsubmitted(fromIdx) {
-  for (let i = fromIdx - 1; i >= 0; i--) {
+function renderOPQuestion(q, isLocked) {
+  // Show OP areas
+  document.getElementById('mcq-answer-area').classList.add('hidden')
+  document.getElementById('op-answer-area').classList.remove('hidden')
+  document.getElementById('mcq-left-body').classList.add('hidden')
+
+  const codeWrap = document.getElementById('code-area-wrap')
+  const tcWrap   = document.getElementById('tc-inputs-wrap')
+  codeWrap.style.display = ''
+  tcWrap.style.display   = ''
+
+  // Set code in Monaco (detect language from content)
+  const code = q.starter_code || '# No code provided'
+  const lang = code.includes('#include') ? 'c' : code.includes('def ') || code.includes('print') ? 'python' : 'cpp'
+  if (monacoReady && monacoEditor) {
+    monacoEditor.setValue(code)
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), lang)
+  }
+
+  // Visible test case inputs on left
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  const hidden  = (q.test_cases?.length || 0) - visible.length
+  const tcInputs = document.getElementById('tc-inputs-list')
+
+  if (visible.length === 0) {
+    tcInputs.innerHTML = `<p class="text-xs text-muted">No visible test cases.</p>`
+  } else {
+    tcInputs.innerHTML = visible.map((tc, i) => `
+      <div style="margin-bottom:.375rem;padding:.375rem .5rem;background:var(--bg-750);border:1px solid var(--border);border-radius:var(--radius)">
+        <span style="font-size:.6875rem;color:var(--text-400);font-weight:600;margin-right:.375rem">Case ${i+1}:</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text-200)">${escHtml(tc.input || '(empty)')}</span>
+      </div>`).join('')
+  }
+
+  // Right side: prediction text areas
+  document.getElementById('answer-label').textContent = 'Predict the Output'
+  document.getElementById('btn-submit-op').classList.toggle('hidden', isLocked)
+
+  const savedPreds = answers[q.id]?.predictions || {}
+  const result     = results[q.id]
+
+  if (visible.length === 0) {
+    document.getElementById('op-pred-list').innerHTML = `<p class="text-sm text-muted">No visible test cases to predict.</p>`
+  } else {
+    document.getElementById('op-pred-list').innerHTML = visible.map((tc, i) => {
+      const predText = savedPreds[tc.id] || ''
+      const tcResult = result?.test_results?.find?.(r => r.case_id === tc.id)
+      const locked   = isLocked
+
+      let resultBadge = ''
+      if (locked && tcResult) {
+        resultBadge = tcResult.matched
+          ? `<span class="pred-result-match">&#10004; Correct (+${tcResult.score} pts)</span>`
+          : `<span class="pred-result-miss">&#10008; Incorrect</span>`
+      }
+
+      return `
+        <div class="pred-case" data-case-id="${tc.id}">
+          <div class="pred-case-header">
+            <span>Test Case ${i+1}  <span style="font-weight:400;color:var(--text-500)">(${tc.points} pts)</span></span>
+            ${resultBadge}
+          </div>
+          <div style="font-size:.6875rem;color:var(--text-500);margin-bottom:.25rem">Input:</div>
+          <div class="pred-input-disp">${escHtml(tc.input || '(empty)')}</div>
+          <div style="font-size:.6875rem;color:var(--text-500);margin-bottom:.25rem">Your Prediction:</div>
+          <textarea class="pred-textarea" data-case-id="${tc.id}"
+            placeholder="Type the expected output..."
+            ${locked ? 'disabled' : ''}>${escHtml(predText)}</textarea>
+          ${locked && tcResult && !tcResult.matched ? `<div style="font-size:.75rem;color:var(--text-400);margin-top:.25rem">Expected: <code style="font-size:.75rem">${escHtml(tcResult.expected)}</code></div>` : ''}
+        </div>`
+    }).join('')
+
+    // Save predictions on input
+    if (!isLocked) {
+      document.querySelectorAll('#op-pred-list .pred-textarea').forEach(ta => {
+        ta.addEventListener('input', () => {
+          const caseId = ta.dataset.caseId
+          if (!answers[q.id]) answers[q.id] = { type: 'output_prediction', predictions: {} }
+          answers[q.id].predictions[caseId] = ta.value
+        })
+      })
+    }
+  }
+
+  // Result summary
+  const resultArea = document.getElementById('op-result-area')
+  if (isLocked && result) {
+    const passed = (result.test_results||[]).filter(r => r.matched).length
+    const total  = result.test_results?.length || 0
+    resultArea.innerHTML = `
+      <div class="result-summary" style="background:${passed===total ? 'rgba(5,150,105,.08)' : 'rgba(217,119,6,.08)'};border:1px solid ${passed===total ? 'rgba(5,150,105,.2)' : 'rgba(217,119,6,.2)'};color:${passed===total ? 'var(--green-600)' : 'var(--amber-500)'}">
+        ${passed===total ? '&#10004;' : '&#9888;'} ${passed}/${total} predictions correct
+        <span style="margin-left:auto">Score: ${result.score} pts</span>
+      </div>`
+  } else {
+    resultArea.innerHTML = ''
+  }
+}
+
+// ── MCQ option click ──
+window.selectMCQ = (el) => {
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id)) return
+  document.querySelectorAll('.mcq-option').forEach(o => o.classList.remove('selected'))
+  el.classList.add('selected')
+  if (!answers[q.id]) answers[q.id] = { type: 'mcq', selected: null }
+  answers[q.id].selected = el.dataset.option
+}
+
+// ── Submit MCQ ──
+document.getElementById('btn-submit-mcq').addEventListener('click', async () => {
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id) || isSubmitting) return
+  const ans = answers[q.id]
+  if (!ans?.selected) { toastWarning('Please select an answer first.'); return }
+
+  isSubmitting = true
+  updateButtons()
+  try {
+    const res = await api.submitAnswer({
+      session_token:   session.session_token,
+      question_id:     q.id,
+      answer_type:     'mcq',
+      selected_option: ans.selected,
+      is_final:        true,
+    })
+    if (res.error) { toastError(res.error); return }
+    results[q.id] = res
+    submitted.add(q.id)
+    toastSuccess(`Q${currentIdx+1} submitted · Score: ${res.score}/${q.points}`)
+    renderQuestion(currentIdx)
+    autoAdvance()
+  } catch (err) { toastError('Submit failed: ' + err.message) }
+  finally { isSubmitting = false; updateButtons() }
+})
+
+// ── Submit Output Prediction ──
+document.getElementById('btn-submit-op').addEventListener('click', async () => {
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id) || isSubmitting) return
+
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  if (visible.length === 0) { toastWarning('No test cases to submit.'); return }
+
+  // Collect predictions from textareas
+  const predictions = visible.map(tc => {
+    const ta = document.querySelector(`.pred-textarea[data-case-id="${tc.id}"]`)
+    return { case_id: tc.id, predicted: ta?.value || '' }
+  })
+
+  const hasAny = predictions.some(p => p.predicted.trim() !== '')
+  if (!hasAny) { toastWarning('Please enter at least one prediction.'); return }
+
+  isSubmitting = true
+  updateButtons()
+  try {
+    const res = await api.submitAnswer({
+      session_token:    session.session_token,
+      question_id:      q.id,
+      answer_type:      'output_prediction',
+      predictions,
+      is_final:         true,
+    })
+    if (res.error) { toastError(res.error); return }
+    results[q.id] = res
+    submitted.add(q.id)
+    if (!answers[q.id]) answers[q.id] = { type: 'output_prediction', predictions: {} }
+    predictions.forEach(p => { answers[q.id].predictions[p.case_id] = p.predicted })
+    const passed = (res.test_results||[]).filter(r => r.matched).length
+    const total  = res.test_results?.length || 0
+    toastSuccess(`Q${currentIdx+1} submitted · ${passed}/${total} correct · ${res.score} pts`)
+    renderQuestion(currentIdx)
+    autoAdvance()
+  } catch (err) { toastError('Submit failed: ' + err.message) }
+  finally { isSubmitting = false; updateButtons() }
+})
+
+function autoAdvance() {
+  const nextIdx = findNextUnsubmitted(currentIdx)
+  if (nextIdx >= 0) setTimeout(() => renderQuestion(nextIdx), 400)
+}
+
+// ── Navigation ──
+function findPrevUnsubmitted(from) {
+  for (let i = from - 1; i >= 0; i--) {
     if (!submitted.has(questions[i].id)) return i
   }
   return -1
 }
-function findNextUnsubmitted(fromIdx) {
-  for (let i = fromIdx + 1; i < questions.length; i++) {
+function findNextUnsubmitted(from) {
+  for (let i = from + 1; i < questions.length; i++) {
     if (!submitted.has(questions[i].id)) return i
   }
   return -1
 }
 
 function updateButtons() {
-  const q          = questions[currentIdx]
-  const isLocked   = q && submitted.has(q.id)
-  const hasCode    = q && (code[q.id] || '').trim().length > 0
-  const langReady  = selectedLang === 'c' ? true : pythonReady
-  const unsubCount = questions.filter(qq => !submitted.has(qq.id)).length
+  if (!questions.length) return
+  const unsubCount = questions.filter(q => !submitted.has(q.id)).length
+  const prevIdx    = findPrevUnsubmitted(currentIdx)
+  const nextIdx    = findNextUnsubmitted(currentIdx)
 
-  document.getElementById('btn-run').disabled    = !langReady || !hasCode || isLocked || running || submitting
-  document.getElementById('btn-submit').disabled = !langReady || !hasCode || isLocked || submitting || running
-
-  if (running) {
-    document.getElementById('btn-run').innerHTML =
-      '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:4px"></span> Running...'
-  } else {
-    document.getElementById('btn-run').innerHTML = '&#9654; Run'
-  }
-  document.getElementById('btn-submit').textContent = submitting ? 'Testing...' : '&#10003; Submit'
-
-  const prevIdx = findPrevUnsubmitted(currentIdx)
-  const nextIdx = findNextUnsubmitted(currentIdx)
   document.getElementById('btn-prev').disabled = prevIdx < 0
   document.getElementById('btn-next').classList.toggle('hidden', nextIdx < 0)
 
-  // Finish Assessment: always visible once questions are loaded
   const finishBtn = document.getElementById('btn-finish')
   finishBtn.classList.toggle('hidden', questions.length === 0)
-  if (unsubCount > 0) {
-    finishBtn.textContent = `Finish Assessment (${unsubCount} left)`
-  } else {
-    finishBtn.innerHTML = '&#10003; Finish Assessment'
-  }
+  finishBtn.textContent = unsubCount > 0
+    ? `Finish Assessment (${unsubCount} unanswered)`
+    : '&#10003; Finish Assessment'
+
+  // Disable submit buttons if already submitting
+  const mcqBtn = document.getElementById('btn-submit-mcq')
+  const opBtn  = document.getElementById('btn-submit-op')
+  if (mcqBtn) mcqBtn.disabled = isSubmitting
+  if (opBtn)  opBtn.disabled  = isSubmitting
 }
 
+document.getElementById('btn-prev').addEventListener('click', () => {
+  const i = findPrevUnsubmitted(currentIdx)
+  if (i >= 0) renderQuestion(i)
+})
+document.getElementById('btn-next').addEventListener('click', () => {
+  const i = findNextUnsubmitted(currentIdx)
+  if (i >= 0) renderQuestion(i)
+})
+
+// ── Question dots ──
 function renderDots() {
   const el = document.getElementById('q-dots')
-  el.innerHTML = questions.map((q,i) => {
-    const isLocked = submitted.has(q.id)
-    const isActive = i === currentIdx
-    return `<button
-      class="q-dot ${isActive ? 'active' : ''} ${isLocked ? 'submitted' : ''}"
-      data-idx="${i}"
-      ${isLocked ? 'disabled title="Locked — question already submitted"' : ''}
-    >${i+1}</button>`
-  }).join('')
-  el.querySelectorAll('.q-dot:not([disabled])').forEach(btn => {
+  el.innerHTML = questions.map((q,i) => `
+    <button class="q-dot ${i===currentIdx ? 'active' : ''} ${submitted.has(q.id) ? 'submitted' : (answers[q.id] ? 'answered' : '')}"
+      data-idx="${i}" title="Q${i+1}: ${q.title}">${i+1}</button>
+  `).join('')
+  el.querySelectorAll('.q-dot').forEach(btn => {
     btn.addEventListener('click', () => renderQuestion(Number(btn.dataset.idx)))
   })
 }
 function updateDots() {
   document.querySelectorAll('.q-dot').forEach((btn, i) => {
-    const q        = questions[i]
-    const isLocked = q && submitted.has(q.id)
-    const isActive = i === currentIdx
-    btn.className  = `q-dot ${isActive ? 'active' : ''} ${isLocked ? 'submitted' : ''}`
-    if (isLocked) {
-      btn.disabled = true
-      btn.title    = 'Locked — question already submitted'
-    }
+    const q = questions[i]
+    btn.className = `q-dot ${i===currentIdx ? 'active' : ''} ${submitted.has(q.id) ? 'submitted' : (answers[q.id] ? 'answered' : '')}`
   })
 }
 
@@ -576,20 +648,20 @@ function startTimer() {
   const total  = expiry - Date.now()
   function tick() {
     const remaining = expiry - Date.now()
-    if (remaining <= 0) { setTimer(0, total); autoSubmit('timer_expired'); return }
+    if (remaining <= 0) { setTimer(0, total); autoSubmitAll('timer_expired'); return }
     setTimer(remaining, total)
     requestAnimationFrame(() => setTimeout(tick, 1000))
   }
   tick()
 }
 function setTimer(remaining, total) {
-  const pct        = total > 0 ? (remaining / total) * 100 : 0
+  const pct = total > 0 ? (remaining / total) * 100 : 0
   const isCritical = remaining <= 60000
   const isWarning  = remaining <= 300000
   document.getElementById('timer-display').textContent = formatTime(remaining)
-  document.getElementById('timer-display').className   =
+  document.getElementById('timer-display').className =
     `timer-text ${isCritical ? 'timer-critical-text' : isWarning ? 'timer-warning-text' : 'timer-normal-text'}`
-  const bar     = document.getElementById('timer-bar')
+  const bar = document.getElementById('timer-bar')
   bar.style.width = `${pct}%`
   bar.className   = `timer-bar ${isCritical ? 'timer-critical' : isWarning ? 'timer-warning' : 'timer-normal'}`
 }
@@ -612,292 +684,57 @@ function startStatusPoller() {
   }, 10000)
 }
 
-// ── Periodic snapshots ──
-function startPeriodicSnapshots() {
-  setInterval(() => {
-    questions.forEach(q => {
-      const replay = replays[q.id]
-      if (!replay) return
-      const curr = code[q.id] || ''
-      const last = replay.snapshots[replay.snapshots.length - 1]
-      if (!last || last.code !== curr) {
-        replay.snapshots.push({ t: Date.now()-replay.startTime, code: curr, trigger:'periodic' })
-      }
-    })
-  }, 10000)
-}
-
 // ── Anti-cheat ──
-document.addEventListener('visibilitychange', () => { if (document.hidden) autoSubmit('tab_switch') })
-document.addEventListener('fullscreenchange',  () => { if (!document.fullscreenElement) autoSubmit('fullscreen_exit') })
-window.addEventListener('beforeunload', e => { autoSubmit('tab_close'); e.preventDefault(); e.returnValue = '' })
-window.addEventListener('blur', () => autoSubmit('window_blur'))
+document.addEventListener('visibilitychange', () => { if (document.hidden) handleViolation('tab_switch') })
+document.addEventListener('fullscreenchange',  () => { if (!document.fullscreenElement) handleViolation('fullscreen_exit') })
+window.addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = '' })
 document.addEventListener('keydown', e => { if ((e.ctrlKey && e.key==='u') || e.key==='F12') e.preventDefault() })
 
-async function autoSubmit(reason) {
+async function handleViolation(reason) {
+  if (isSubmitting || hasCompleted) return
+  try { await api.logEvent(session.session_id, session.session_token, reason, { timestamp: Date.now() }) } catch {}
+  if (!hasCompleted) {
+    hasCompleted = true
+    isSubmitting = true
+    await submitAllUnanswered()
+    document.exitFullscreen().catch(() => {})
+    window.location.replace(`/test/complete.html?round=${roundId}`)
+  }
+}
+
+async function autoSubmitAll(reason) {
   if (isSubmitting || hasCompleted) return
   isSubmitting = true
   hasCompleted = true
-  try { await api.logEvent(session.session_id, session.session_token, reason, { timestamp: Date.now() }) } catch {}
-  for (const q of questions) {
-    if (submitted.has(q.id)) continue
-    const c = code[q.id]
-    if (!c) continue
-    try {
-      const replay = replays[q.id]
-      if (replay) replay.snapshots.push({ t: Date.now()-replay.startTime, code: c, trigger:'submit' })
-      const lang = langPerQuestion[q.id] || 'python'
-      await api.submitAnswer({
-        session_token: session.session_token,
-        question_id:   q.id,
-        code:          c,
-        test_results:  null,
-        is_final:      true,
-        language_id:   lang === 'c' ? 50 : 71,
-        speed_metrics: buildMetricsPayload(q.id),
-        typing_replay: replay || null,
-      })
-    } catch {}
-  }
-  try { await api.completeSession(session.session_id, session.session_token) } catch {}
+  try { await api.logEvent(session.session_id, session.session_token, reason, {}) } catch {}
+  await submitAllUnanswered()
   document.exitFullscreen().catch(() => {})
   window.location.replace(`/test/complete.html?round=${roundId}`)
 }
 
-// ── Run (visible test cases only) ──
-document.getElementById('btn-run').addEventListener('click', async () => {
-  const q = questions[currentIdx]
-  if (!q || running || submitting || submitted.has(q.id)) return
-  if (selectedLang === 'python' && !pythonReady) { toastWarning('Python is still loading...'); return }
-
-  running = true
-  updateButtons()
-
-  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
-  try {
-    const results = await runCode(code[q.id] || '', visible)
-    runResults[q.id] = results
-    renderOutput(q.id)
-
-    const replay = replays[q.id]
-    if (replay) {
-      const t = Date.now() - replay.startTime
-      replay.snapshots.push({ t, code: code[q.id]||'', trigger:'run' })
-      replay.runEvents.push({ t, results })
-    }
-  } catch (e) { toastError('Run failed: ' + e.message) }
-
-  running = false
-  updateButtons()
-})
-
-// ── Submit Step 1: Run ALL tests → show preview modal ──
-document.getElementById('btn-submit').addEventListener('click', async () => {
-  const q = questions[currentIdx]
-  if (!q || submitted.has(q.id) || submitting || running) return
-  if (selectedLang === 'python' && !pythonReady) { toastWarning('Python is still loading...'); return }
-  if (!(code[q.id] || '').trim()) { toastWarning('Please write some code first.'); return }
-  if (cNotSupported && selectedLang === 'c') {
-    toastWarning('C execution is not available on this server. Switch to Python 3 to run and submit your code.')
-    return
-  }
-
-  submitting = true
-  updateButtons()
-
-  try {
-    // Fetch all test cases including hidden
-    const allQs  = await api.getQuestions(roundId, session.session_token, true)
-    const fullQ  = allQs.find(x => x.id === q.id)
-    const allTcs = fullQ?.test_cases || []
-
-    const results = await runCode(code[q.id] || '', allTcs)
-
-    pendingResults  = results
-    pendingQuestion = q
-    showPreviewModal(q, results)
-    // submitting stays true until user confirms/cancels
-  } catch (err) {
-    toastError('Failed to run tests: ' + err.message)
-    submitting = false
-    updateButtons()
-  }
-})
-
-function showPreviewModal(q, results) {
-  const totalPassed   = results.filter(r => r.passed).length
-  const total         = results.length
-  const visible       = results.filter(r => !r.is_hidden)
-  const hidden        = results.filter(r => r.is_hidden)
-  const allPass       = totalPassed === total
-  const hasCompileErr = results.some(r => r.status === 'Compilation Error')
-
-  document.getElementById('preview-title').innerHTML = hasCompileErr
-    ? '&#9888; Compilation Error' : '&#128202; Test Results Preview'
-
-  const summaryColor = allPass ? 'var(--green-600)' : totalPassed > 0 ? 'var(--amber-500)' : 'var(--red-500)'
-  const summaryBg    = allPass ? 'rgba(5,150,105,.07)' : totalPassed > 0 ? 'rgba(217,119,6,.07)' : 'rgba(220,38,38,.06)'
-  const summaryBd    = allPass ? 'rgba(5,150,105,.2)' : totalPassed > 0 ? 'rgba(217,119,6,.2)' : 'rgba(220,38,38,.15)'
-
-  let html = ''
-
-  if (hasCompileErr) {
-    html += `
-      <div class="info-box danger mb-3">
-        <strong>Your code could not be compiled.</strong> You can cancel to fix the error, or submit as-is (score will be 0).
-      </div>
-      <div class="compile-err-box">${escHtml(results[0]?.stderr || 'Unknown compilation error')}</div>`
-  } else {
-    html += `
-      <div class="preview-summary" style="background:${summaryBg};border:1px solid ${summaryBd}">
-        <div>
-          <div class="score" style="color:${summaryColor}">${totalPassed} / ${total}</div>
-          <div class="meta">test cases passed</div>
-        </div>
-        <div class="badge-counts">${visible.length} visible &nbsp;·&nbsp; ${hidden.length} hidden</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:.375rem;margin-bottom:.75rem">`
-
-    // Visible test case results (full details)
-    visible.forEach((r, i) => {
-      html += `
-        <div class="result-item">
-          <div class="${r.passed ? 'result-pass' : 'result-fail'}">
-            ${r.passed ? '&#10004;' : '&#10008;'} Case ${i+1}: ${r.status}
-            <span style="font-weight:400;font-size:.8125rem;opacity:.7">(${r.time_ms}ms)</span>
-          </div>
-          ${!r.passed ? `
-            <div class="result-detail">
-              ${r.stdout ? `<pre class="got">Got: ${escHtml(r.stdout.trim())}</pre>` : ''}
-              ${r.stderr ? `<pre class="err">${escHtml(r.stderr.trim())}</pre>` : ''}
-              <pre class="exp">Expected: ${escHtml(r.expected_output)}</pre>
-            </div>` : ''}
-        </div>`
-    })
-
-    // Hidden test case results (pass/fail only — no expected output revealed)
-    if (hidden.length > 0) {
-      html += `<div style="font-size:.6875rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.06em;margin:.5rem 0 .25rem">${hidden.length} Hidden Case${hidden.length > 1 ? 's' : ''}</div>`
-      hidden.forEach((r, i) => {
-        html += `
-          <div class="result-item">
-            <div class="${r.passed ? 'result-pass' : 'result-fail'}">
-              ${r.passed ? '&#10004;' : '&#10008;'} Hidden Case ${i+1}: ${r.status}
-              <span style="font-weight:400;font-size:.8125rem;opacity:.7">(${r.time_ms}ms)</span>
-            </div>
-          </div>`
-      })
-    }
-
-    html += '</div>'
-  }
-
-  html += `
-    <div class="info-box warning" style="font-size:.8125rem;margin-top:.5rem">
-      &#128274; <strong>Once submitted, this question is permanently locked</strong> — you cannot revisit or edit it.
-    </div>`
-
-  document.getElementById('preview-content').innerHTML = html
-  document.getElementById('modal-preview').classList.add('open')
-}
-
-// ── Submit Step 2: Cancel ──
-document.getElementById('modal-preview-cancel').addEventListener('click', resetPreview)
-
-// Handle Escape / backdrop click (from utils.js) without leaking submitting=true
-new MutationObserver(() => {
-  if (!document.getElementById('modal-preview').classList.contains('open') && pendingResults !== null) {
-    resetPreview()
-  }
-}).observe(document.getElementById('modal-preview'), { attributes: true, attributeFilter: ['class'] })
-
-function resetPreview() {
-  document.getElementById('modal-preview').classList.remove('open')
-  pendingResults  = null
-  pendingQuestion = null
-  submitting      = false
-  updateButtons()
-}
-
-// ── Submit Step 3: Confirm → send to server ──
-document.getElementById('modal-preview-confirm').addEventListener('click', async () => {
-  document.getElementById('modal-preview').classList.remove('open')
-  const q       = pendingQuestion
-  const results = pendingResults
-  pendingResults  = null
-  pendingQuestion = null
-
-  if (!q || !results) { submitting = false; updateButtons(); return }
-
-  try {
-    const replay = replays[q.id]
-    if (replay) replay.snapshots.push({ t: Date.now()-replay.startTime, code: code[q.id]||'', trigger:'submit' })
-    const lang = langPerQuestion[q.id] || 'python'
-
-    const res = await api.submitAnswer({
-      session_token: session.session_token,
-      question_id:   q.id,
-      code:          code[q.id],
-      test_results:  results,
-      is_final:      true,
-      language_id:   lang === 'c' ? 50 : 71,
-      speed_metrics: buildMetricsPayload(q.id),
-      typing_replay: replay || null,
-    })
-
-    if (res.error) { toastError(res.error); submitting = false; updateButtons(); return }
-
-    submitted.add(q.id)
-    runResults[q.id] = results.filter(r => !r.is_hidden)
-
-    // Lock the editor immediately
-    if (editor) editor.updateOptions({ readOnly: true })
-    document.getElementById('locked-overlay').classList.remove('hidden')
-
-    renderOutput(q.id)
-    updateDots()
-
-    const passed = results.filter(r => r.passed).length
-    toastSuccess(`Q${currentIdx+1} submitted: ${passed}/${results.length} passed · Score: ${res.score ?? 0}`)
-
-    // Auto-advance to next unsubmitted question
-    const nextIdx = findNextUnsubmitted(currentIdx)
-    if (nextIdx >= 0) {
-      renderQuestion(nextIdx)
-    } else {
-      const anyIdx = questions.findIndex(qq => !submitted.has(qq.id))
-      if (anyIdx >= 0) {
-        renderQuestion(anyIdx)
-      } else {
-        // All submitted
-        updateButtons()
-        toastSuccess('All questions submitted! Click "Finish Assessment" to complete.', 5000)
+async function submitAllUnanswered() {
+  for (const q of questions) {
+    if (submitted.has(q.id)) continue
+    const ans = answers[q.id]
+    if (!ans) continue
+    try {
+      if (q.question_type === 'mcq' && ans.selected) {
+        await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'mcq', selected_option: ans.selected, is_final: true })
+      } else if (q.question_type === 'output_prediction' && ans.predictions) {
+        const preds = Object.entries(ans.predictions).map(([case_id, predicted]) => ({ case_id, predicted }))
+        if (preds.length) await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'output_prediction', predictions: preds, is_final: true })
       }
-    }
-  } catch (err) {
-    toastError('Submit failed: ' + err.message)
+    } catch {}
   }
-
-  submitting = false
-  updateButtons()
-})
-
-// ── Navigation ──
-document.getElementById('btn-prev').addEventListener('click', () => {
-  const i = findPrevUnsubmitted(currentIdx)
-  if (i >= 0) renderQuestion(i)
-})
-document.getElementById('btn-next').addEventListener('click', () => {
-  const i = findNextUnsubmitted(currentIdx)
-  if (i >= 0) renderQuestion(i)
-})
+  try { await api.completeSession(session.session_id, session.session_token) } catch {}
+}
 
 // ── Finish Assessment ──
 document.getElementById('btn-finish').addEventListener('click', () => {
   const unsubCount = questions.filter(q => !submitted.has(q.id)).length
   document.getElementById('finish-warning').innerHTML = unsubCount > 0
-    ? `You have <strong style="color:var(--red-500)">${unsubCount} unsubmitted question${unsubCount > 1 ? 's' : ''}</strong>. They will be saved without test results and cannot be revisited. Are you sure you want to finish?`
-    : `All questions are submitted. Are you ready to finish the assessment?`
+    ? `<strong>${unsubCount} question${unsubCount>1?'s':''} unanswered</strong>. Unanswered questions will score 0. Are you sure?`
+    : 'All questions answered. Ready to submit your assessment?'
   document.getElementById('modal-finish').classList.add('open')
 })
 document.getElementById('modal-finish-cancel').addEventListener('click', () => {
@@ -910,11 +747,13 @@ document.getElementById('modal-finish-ok').addEventListener('click', async () =>
   btn.disabled = true
   btn.innerHTML = '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:6px"></span> Finishing...'
   document.getElementById('modal-finish').classList.remove('open')
-  // Fire API call but don't block navigation on it
-  api.completeSession(session.session_id, session.session_token).catch(() => {})
+  await submitAllUnanswered()
   document.exitFullscreen().catch(() => {})
   window.location.replace(`/test/complete.html?round=${roundId}`)
 })
+
+// ── Start ──
+await loadQuestions()
 </script>
 </body>
 </html>
