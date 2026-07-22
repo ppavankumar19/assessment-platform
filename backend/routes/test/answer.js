@@ -1,14 +1,17 @@
 import { db } from '../../lib/db.js'
+import { executeAndScore } from '../../lib/executor.js'
 
 export default async function testAnswerRoutes(app) {
-  // POST /api/test/answer — submit MCQ or Output Prediction answer (server-side scoring)
+  // POST /api/test/answer — submit MCQ, Output Prediction, or Coding answer
   app.post('/answer', async (request, reply) => {
     const {
       session_token,
       question_id,
-      answer_type,       // 'mcq' | 'output_prediction'
+      answer_type,       // 'mcq' | 'output_prediction' | 'coding'
       selected_option,   // for MCQ: 'A'|'B'|'C'|'D'
       predictions,       // for OP: [{case_id, predicted}]
+      code,              // for coding: the submitted code
+      language,          // for coding: 'python' | 'c'
       is_final,
     } = request.body
 
@@ -76,6 +79,23 @@ export default async function testAnswerRoutes(app) {
       finalStatus = isCorrect ? 'accepted' : 'wrong_answer'
       testResults = { type: 'mcq', selected: selected_option, correct_option: correctOpt?.label, is_correct: isCorrect }
 
+    } else if (answer_type === 'coding' || question.question_type === 'coding') {
+      // ── Coding — server-side execution against all test cases ─────────────
+      if (!code || !language) {
+        return reply.status(400).send({ error: 'code and language are required for coding questions' })
+      }
+      const cases = question.test_cases || []
+      const { results: execResults, compile_error, error: execErr } = await executeAndScore(code, language, cases)
+      if (execErr) {
+        return reply.status(503).send({ error: execErr })
+      }
+      testResults = execResults
+      finalScore  = testResults.reduce((s, r) => s + (r.score || 0), 0)
+      const passed = testResults.filter(r => r.passed).length
+      finalStatus  = passed === cases.length ? 'accepted'
+                   : passed > 0             ? 'partial'
+                   :                          'wrong_answer'
+
     } else if (answer_type === 'output_prediction' || question.question_type === 'output_prediction') {
       // ── Output Prediction scoring ─────────────────────────────────
       const cases = question.test_cases || []
@@ -105,8 +125,10 @@ export default async function testAnswerRoutes(app) {
                    :                           'wrong_answer'
     }
 
-    // Store submission (use code field to store selected option for MCQ)
-    const codeStored = answer_type === 'mcq' ? (selected_option || '') : null
+    // Store submission
+    const codeStored = answer_type === 'mcq'    ? (selected_option || '')
+                     : answer_type === 'coding'  ? (code || '')
+                     : null
 
     const { data: submission, error: subErr } = await db
       .from('submissions')
@@ -128,10 +150,18 @@ export default async function testAnswerRoutes(app) {
       return reply.status(400).send({ error: subErr?.message || 'Failed to save answer' })
     }
 
-    // For MCQ: don't expose correct answer in response
-    const safeResults = answer_type === 'mcq'
-      ? { type: 'mcq', is_correct: testResults.is_correct }
-      : testResults
+    // Safe response — strip hidden expected outputs and correct MCQ answer
+    let safeResults
+    if (answer_type === 'mcq') {
+      safeResults = { type: 'mcq', is_correct: testResults.is_correct }
+    } else if (Array.isArray(testResults)) {
+      safeResults = testResults.map(r => r.is_hidden
+        ? { ...r, expected_output: undefined }
+        : r
+      )
+    } else {
+      safeResults = testResults
+    }
 
     return reply.status(201).send({
       submission_id: submission.id,

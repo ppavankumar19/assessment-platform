@@ -13,6 +13,7 @@ import testQuestionsRoutes from './routes/test/questions.js'
 import testSubmitRoutes    from './routes/test/submit.js'
 import testAnswerRoutes    from './routes/test/answer.js'
 import testExecuteCRoutes  from './routes/test/execute_c.js'
+import testExecutePyRoutes from './routes/test/execute_py.js'
 import testSessionRoutes   from './routes/test/session.js'
 
 const ALLOWED_ORIGINS = process.env.FRONTEND_URL
@@ -66,6 +67,7 @@ export async function buildApp() {
   await app.register(testSubmitRoutes,    { prefix: '/api/test' })
   await app.register(testAnswerRoutes,    { prefix: '/api/test' })
   await app.register(testExecuteCRoutes,  { prefix: '/api/test' })
+  await app.register(testExecutePyRoutes, { prefix: '/api/test' })
   await app.register(testSessionRoutes,   { prefix: '/api/test/session' })
 
   app.get('/api/health', async () => ({ status: 'ok', ts: Date.now() }))

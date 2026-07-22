@@ -46,7 +46,7 @@ export default async function adminRoundRoutes(app) {
         id, title, description, round_type, duration_minutes,
         is_published, is_active, cutoff_score, created_at,
         questions(
-          id, title, description, question_type, points, starter_code, expected_output, order_index,
+          id, title, description, question_type, points, starter_code, language, expected_output, order_index,
           test_cases(id, input, expected_output, is_hidden, points, order_index)
         )
       `)

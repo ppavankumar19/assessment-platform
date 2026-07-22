@@ -33,7 +33,7 @@ export default async function testQuestionsRoutes(app) {
     const { data: questions, error: qErr } = await db
       .from('questions')
       .select(`
-        id, title, description, question_type, points, starter_code,
+        id, title, description, question_type, points, starter_code, language,
         expected_output, order_index, mcq_options,
         test_cases(id, input, expected_output, is_hidden, points, order_index)
       `)
