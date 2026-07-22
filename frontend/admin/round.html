@@ -159,6 +159,7 @@
           <select class="select" name="question_type" id="q-type">
             <option value="output_prediction">Output Prediction</option>
             <option value="mcq">MCQ (Multiple Choice)</option>
+            <option value="coding">Coding (write code)</option>
           </select>
         </div>
       </div>
@@ -191,10 +192,22 @@
         <input type="hidden" name="is_draft" value="false">
       </div>
 
-      <!-- Output Prediction fields -->
-      <div id="op-fields">
+      <!-- Coding fields (language selector) -->
+      <div id="coding-lang-field" class="hidden">
         <div class="form-group">
-          <label>Code Snippet <span style="color:var(--text-400);font-weight:400">(the code candidates must predict the output of)</span></label>
+          <label>Language</label>
+          <select class="select" name="language" id="q-language">
+            <option value="any">Any (candidate chooses Python or C)</option>
+            <option value="python">Python 3 only</option>
+            <option value="c">C (gcc) only</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Output Prediction / Coding fields -->
+      <div id="op-fields">
+        <div class="form-group" id="starter-code-wrap">
+          <label id="starter-code-label">Code Snippet <span style="color:var(--text-400);font-weight:400">(the code candidates must predict the output of)</span></label>
           <textarea class="textarea font-mono" name="starter_code" id="q-starter-code" rows="6" placeholder="# Code that candidates will read and predict output for..."></textarea>
         </div>
         <div class="sep"></div>
@@ -203,6 +216,12 @@
           <button type="button" class="btn btn-outline btn-sm" id="btn-add-tc">+ Add Case</button>
         </div>
         <div id="test-cases-editor"></div>
+      </div>
+
+        <!-- hidden test case note for coding -->
+        <div id="coding-tc-note" class="info-box warning hidden" style="font-size:.8125rem;margin-top:.5rem">
+          &#128272; Hidden test cases are run server-side on submission — candidates don't see the expected output.
+        </div>
       </div>
 
       <!-- MCQ fields -->
@@ -263,6 +282,7 @@
           <select class="select" name="round_type">
             <option value="output_prediction">Output Prediction</option>
             <option value="mcq">MCQ (Multiple Choice)</option>
+            <option value="coding">Coding (write code)</option>
           </select>
         </div>
         <div class="form-group">
@@ -442,10 +462,14 @@ function renderQuestions() {
     return
   }
   container.innerHTML = qs.map((q, i) => {
-    const isDraft = q.is_draft
-    const isMCQ   = q.question_type === 'mcq'
+    const isDraft   = q.is_draft
+    const isMCQ    = q.question_type === 'mcq'
+    const isCoding = q.question_type === 'coding'
     const visibleTc = q.test_cases?.filter(t => !t.is_hidden) || []
     const hiddenTc  = q.test_cases?.filter(t => t.is_hidden)  || []
+    const typeBadge = isMCQ ? `<span class="badge badge-indigo">MCQ</span>`
+                    : isCoding ? `<span class="badge badge-amber">Coding</span>`
+                    : `<span class="badge badge-blue">Output Prediction</span>`
     return `
     <div class="question-card mb-3" id="qcard-${q.id}">
       <div class="question-card-header" onclick="toggleQCard('${q.id}')">
@@ -453,7 +477,8 @@ function renderQuestions() {
           <span class="text-muted text-sm" style="flex-shrink:0">Q${i+1}</span>
           <span class="font-semibold truncate">${escHtml(q.title)}</span>
           <span class="badge badge-gray">${q.points} pts</span>
-          <span class="badge badge-indigo">${isMCQ ? 'MCQ' : 'Output Prediction'}</span>
+          ${typeBadge}
+          ${isCoding && q.language ? `<span class="badge badge-gray">${q.language === 'any' ? 'Python/C' : q.language.toUpperCase()}</span>` : ''}
           ${isDraft ? `<span class="draft-badge">Draft</span>` : ''}
           ${!isMCQ ? `<span class="text-xs text-muted">${visibleTc.length}v / ${hiddenTc.length}h cases</span>` : ''}
         </div>
@@ -466,7 +491,7 @@ function renderQuestions() {
       </div>
       <div class="question-card-body">
         ${q.description ? `<p class="text-sm mb-3" style="line-height:1.65;color:var(--text-300)">${escHtml(q.description)}</p>` : ''}
-        ${isMCQ ? renderMCQPreview(q) : renderOPPreview(q)}
+        ${isMCQ ? renderMCQPreview(q) : isCoding ? renderCodingPreview(q) : renderOPPreview(q)}
       </div>
     </div>`
   }).join('')
@@ -484,6 +509,25 @@ function renderMCQPreview(q) {
           ${o.is_correct ? `<span class="badge badge-green" style="margin-left:auto">Correct</span>` : ''}
         </div>`).join('')}
     </div>`
+}
+
+function renderCodingPreview(q) {
+  const langLabel = q.language === 'c' ? 'C (gcc)' : q.language === 'any' ? 'Python or C (candidate chooses)' : 'Python 3'
+  return `
+    <div class="text-xs text-muted mb-2">Language: <strong>${langLabel}</strong></div>
+    ${q.starter_code ? `<div class="form-group"><label>Starter Code (template)</label><div class="io-value" style="max-height:8rem;overflow:auto">${escHtml(q.starter_code)}</div></div>` : ''}
+    <div class="sep"></div>
+    <h4 class="mb-3">Test Cases (${q.test_cases?.length || 0} total)</h4>
+    ${(q.test_cases||[]).map((tc,j) => `
+      <div class="test-case-card">
+        <div class="test-case-header">
+          <span class="text-xs font-semibold text-muted">Case ${j+1} &mdash; ${tc.points} pts${tc.is_hidden ? ' &nbsp;<span class="badge badge-amber">Hidden</span>' : ''}</span>
+        </div>
+        <div class="test-case-io">
+          <div><div class="io-label">Input</div><div class="io-value">${escHtml(tc.input||'(empty)')}</div></div>
+          <div><div class="io-label">Expected Output</div><div class="io-value">${escHtml(tc.expected_output)}</div></div>
+        </div>
+      </div>`).join('')}`
 }
 
 function renderOPPreview(q) {
@@ -516,14 +560,25 @@ window.toggleDraft = async (id, setDraft) => {
 
 // ── Question type switcher in modal ──
 const qType = document.getElementById('q-type')
-qType.addEventListener('change', () => {
-  const isMCQ = qType.value === 'mcq'
+qType.addEventListener('change', () => syncQTypeUI())
+
+function syncQTypeUI() {
+  const val    = qType.value
+  const isMCQ  = val === 'mcq'
+  const isCoding = val === 'coding'
   document.getElementById('op-fields').classList.toggle('hidden', isMCQ)
   document.getElementById('mcq-fields').classList.toggle('hidden', !isMCQ)
+  document.getElementById('coding-lang-field').classList.toggle('hidden', !isCoding)
+  document.getElementById('coding-tc-note').classList.toggle('hidden', !isCoding)
+  // Update starter code label
+  const label = document.getElementById('starter-code-label')
+  if (label) label.innerHTML = isCoding
+    ? 'Starter Code <span style="color:var(--text-400);font-weight:400">(optional template shown to candidates in editor)</span>'
+    : 'Code Snippet <span style="color:var(--text-400);font-weight:400">(the code candidates must predict the output of)</span>'
   document.getElementById('pts-auto-note').textContent = isMCQ
     ? 'Full points awarded for correct MCQ answer'
     : 'Test case points auto-distributed equally'
-})
+}
 
 // ── Draft toggle in modal ──
 const draftToggle = document.getElementById('draft-toggle')
@@ -557,23 +612,20 @@ document.getElementById('btn-add-question').addEventListener('click', () => {
   const form = document.getElementById('form-question')
   form.reset()
   form.question_id.value = ''
-  form.question_type.value = round.round_type === 'mcq' ? 'mcq' : 'output_prediction'
+  const defaultType = round.round_type === 'mcq' ? 'mcq'
+                    : round.round_type === 'coding' ? 'coding'
+                    : 'output_prediction'
+  form.question_type.value = defaultType
   form.order_index.value = (round.questions?.length || 0) + 1
-  form.points.value = '10'
+  form.points.value = round.round_type === 'coding' ? '30' : '10'
   document.getElementById('q-starter-code').value = ''
+  if (form.language) form.language.value = 'any'
 
   // Reset draft toggle
   draftToggle.classList.remove('on')
   document.querySelector('[name="is_draft"]').value = 'false'
 
-  // Set correct panel
-  const isMCQ = form.question_type.value === 'mcq'
-  document.getElementById('op-fields').classList.toggle('hidden', isMCQ)
-  document.getElementById('mcq-fields').classList.toggle('hidden', !isMCQ)
-  document.getElementById('pts-auto-note').textContent = isMCQ
-    ? 'Full points awarded for correct MCQ answer'
-    : 'Test case points auto-distributed equally'
-
+  syncQTypeUI()
   document.getElementById('modal-q-title').textContent = 'Add Question'
   document.getElementById('btn-save-question').textContent = 'Add Question'
   testCaseCount = 0
@@ -594,18 +646,14 @@ window.openEditQuestion = id => {
   form.points.value = q.points
   form.order_index.value = q.order_index || 0
   document.getElementById('q-starter-code').value = q.starter_code || ''
+  if (form.language) form.language.value = q.language || 'any'
 
   // Draft toggle
   const isDraft = q.is_draft || false
   if (isDraft) draftToggle.classList.add('on'); else draftToggle.classList.remove('on')
   document.querySelector('[name="is_draft"]').value = isDraft ? 'true' : 'false'
 
-  const isMCQ = q.question_type === 'mcq'
-  document.getElementById('op-fields').classList.toggle('hidden', isMCQ)
-  document.getElementById('mcq-fields').classList.toggle('hidden', !isMCQ)
-  document.getElementById('pts-auto-note').textContent = isMCQ
-    ? 'Full points awarded for correct MCQ answer'
-    : 'Test case points auto-distributed equally'
+  syncQTypeUI()
 
   document.getElementById('modal-q-title').textContent = 'Edit Question'
   document.getElementById('btn-save-question').textContent = 'Save Changes'
@@ -708,16 +756,19 @@ document.getElementById('form-question').addEventListener('submit', async e => {
   const fd = new FormData(e.target)
   const qId = fd.get('question_id')
   const form = e.target
-  const isMCQ = fd.get('question_type') === 'mcq'
+  const qType  = fd.get('question_type')
+  const isMCQ  = qType === 'mcq'
+  const isCoding = qType === 'coding'
 
   const body = {
     round_id:      roundId,
     title:         fd.get('title'),
     description:   fd.get('description') || null,
-    question_type: fd.get('question_type'),
+    question_type: qType,
     points:        Number(fd.get('points')),
     order_index:   Number(fd.get('order_index')),
     starter_code:  isMCQ ? null : (fd.get('starter_code') || null),
+    language:      isCoding ? (fd.get('language') || 'any') : 'python',
     is_draft:      fd.get('is_draft') === 'true',
     test_cases:    isMCQ ? [] : collectTestCases(form),
     mcq_options:   isMCQ ? collectMCQOptions(form) : null,
