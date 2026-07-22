@@ -220,7 +220,81 @@ for (const q of ops) {
   console.log(`    ${q.order_index}. ${row.title}`)
 }
 
+// ── Round 4: Coding Challenge (write Python or C) ─────────────────────────────
+
+const r4 = await insert('rounds', {
+  title:            'Coding Challenge',
+  description:      'Write a working program to solve each problem. You may use Python 3 or C — your choice! Read the sample test cases, then make sure your code handles all inputs correctly.',
+  round_type:       'coding',
+  duration_minutes: 60,
+  cutoff_score:     20,
+  is_published:     true,
+  is_active:        true,
+})
+console.log(`[4] Created: ${r4.title}`)
+
+const codingProblems = [
+  {
+    title:        'Sum of Two Numbers',
+    description:  'Read two integers from input (one per line). Print their sum.',
+    order_index:  1,
+    language:     'any',
+    starter_code: '# Python starter\na = int(input())\nb = int(input())\nprint(a + b)',
+    cases: [
+      { input: '3\n5',     expected_output: '8',   is_hidden: false, points: 5 },
+      { input: '10\n20',   expected_output: '30',  is_hidden: false, points: 5 },
+      { input: '0\n0',     expected_output: '0',   is_hidden: true,  points: 10 },
+      { input: '100\n200', expected_output: '300', is_hidden: true,  points: 10 },
+    ],
+  },
+  {
+    title:        'Odd or Even',
+    description:  'Read an integer N. If N is odd, print "Odd". If N is even, print "Even".',
+    order_index:  2,
+    language:     'any',
+    starter_code: '# Python starter\nn = int(input())\n# print Odd or Even',
+    cases: [
+      { input: '7',  expected_output: 'Odd',  is_hidden: false, points: 5 },
+      { input: '12', expected_output: 'Even', is_hidden: false, points: 5 },
+      { input: '0',  expected_output: 'Even', is_hidden: true,  points: 10 },
+      { input: '99', expected_output: 'Odd',  is_hidden: true,  points: 10 },
+    ],
+  },
+  {
+    title:        'Sum of First N Natural Numbers',
+    description:  'Read a positive integer N. Print the sum of all integers from 1 to N (inclusive).',
+    order_index:  3,
+    language:     'any',
+    starter_code: '# Python starter\nn = int(input())\n# compute and print the sum',
+    cases: [
+      { input: '5',   expected_output: '15',   is_hidden: false, points: 5 },
+      { input: '10',  expected_output: '55',   is_hidden: false, points: 5 },
+      { input: '1',   expected_output: '1',    is_hidden: true,  points: 10 },
+      { input: '100', expected_output: '5050', is_hidden: true,  points: 10 },
+    ],
+  },
+]
+
+for (const { cases, ...qData } of codingProblems) {
+  const row = await insert('questions', {
+    round_id:      r4.id,
+    question_type: 'coding',
+    points:        30,
+    ...qData,
+  })
+  await insertMany('test_cases', cases.map((c, i) => ({
+    question_id:     row.id,
+    input:           c.input,
+    expected_output: c.expected_output,
+    is_hidden:       c.is_hidden,
+    points:          c.points,
+    order_index:     i + 1,
+  })))
+  console.log(`    ${qData.order_index}. ${row.title}`)
+}
+
 console.log('\nSeed complete.')
 console.log(`Python Basics      → /test/entry.html?round=${r1.id}`)
 console.log(`CS Fundamentals    → /test/entry.html?round=${r2.id}`)
 console.log(`Code Output Chall. → /test/entry.html?round=${r3.id}`)
+console.log(`Coding Challenge   → /test/entry.html?round=${r4.id}`)
