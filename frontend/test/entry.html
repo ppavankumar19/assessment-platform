@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assessment Entry — Rules &amp; Registration</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .reg-timer-box {
+      display: flex; align-items: center; gap: .625rem;
+      padding: .625rem 1rem; border-radius: var(--radius);
+      background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.2);
+      font-size: .875rem; color: var(--amber-500); margin-bottom: 1rem; font-weight: 500;
+    }
+    .reg-timer-val { font-family: 'JetBrains Mono', monospace; font-weight: 700; min-width: 3rem; }
+    .reg-timer-box.critical { background: rgba(220,38,38,.07); border-color: rgba(220,38,38,.2); color: var(--red-500); }
+    .hidden { display:none !important; }
+    .info-box { padding:.75rem 1rem; border-radius:var(--radius); font-size:.875rem; line-height:1.6; margin-bottom:1rem; }
+    .info-box.warning { background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2); color:var(--amber-500); }
+  </style>
 </head>
 <body style="background:var(--bg-950)">
 <div style="min-height:100vh;display:flex;flex-direction:column;">
@@ -48,19 +61,19 @@
         </li>
         <li class="rule-item">
           <span class="rule-icon warning">&#9679;</span>
-          <span class="rule-text">All typing activity and paste events are <strong>recorded</strong> for malpractice review.</span>
+          <span class="rule-text">All activity is <strong>recorded</strong> for malpractice review.</span>
         </li>
         <li class="rule-item">
           <span class="rule-icon warning">&#9679;</span>
           <span class="rule-text">The <strong>timer starts immediately</strong> when you click "Enter Exam". Ensure you have uninterrupted time.</span>
         </li>
         <li class="rule-item">
-          <span class="rule-icon success">&#10003;</span>
-          <span class="rule-text">Coding questions use <strong>Python 3</strong> executed locally in your browser via WebAssembly.</span>
+          <span class="rule-icon warning">&#9679;</span>
+          <span class="rule-text">You have <strong>15 minutes</strong> to complete registration. After that, you must refresh to restart.</span>
         </li>
         <li class="rule-item">
           <span class="rule-icon success">&#10003;</span>
-          <span class="rule-text">Use <strong>incognito / private browsing mode</strong> for the best experience and to avoid extension interference.</span>
+          <span class="rule-text">Use <strong>incognito / private browsing mode</strong> for the best experience.</span>
         </li>
       </ul>
     </div>
@@ -71,17 +84,29 @@
         <span class="toggle" id="incognito-toggle"></span>
         <div>
           <div style="font-size:.875rem;font-weight:500;color:var(--text-100);">I am using incognito / private browsing mode</div>
-          <div style="font-size:.8125rem;color:var(--text-400);margin-top:.125rem">Required to prevent extension interference during the exam</div>
+          <div style="font-size:.8125rem;color:var(--text-400);margin-top:.125rem">Recommended to prevent extension interference</div>
         </div>
       </label>
     </div>
 
     <!-- Registration form -->
     <div class="card" id="reg-card">
-      <div class="flex items-center gap-2 mb-4">
-        <span style="font-size:1rem;">&#128100;</span>
-        <h3>Candidate Registration</h3>
+      <div class="flex items-center justify-between gap-2 mb-4">
+        <div class="flex items-center gap-2">
+          <span style="font-size:1rem;">&#128100;</span>
+          <h3>Candidate Registration</h3>
+        </div>
+        <!-- 15-minute registration countdown -->
+        <div class="reg-timer-box" id="reg-timer-box" style="margin-bottom:0;padding:.375rem .75rem">
+          <span style="font-size:.75rem">&#9201; Registration</span>
+          <span class="reg-timer-val" id="reg-timer-val">15:00</span>
+        </div>
       </div>
+
+      <div id="timer-expired-msg" class="info-box warning hidden">
+        &#9888; Registration time expired. Please <a href="javascript:location.reload()" style="color:var(--amber-500);text-decoration:underline">refresh the page</a> to try again.
+      </div>
+
       <form id="form-register">
         <div class="grid-2">
           <div class="form-group">
@@ -112,7 +137,7 @@
           <span style="flex-shrink:0;font-size:1rem;margin-top:.1rem">&#9200;</span>
           <div>
             <strong style="color:var(--text-100)">Ready to begin?</strong>
-            <span style="color:var(--text-300)"> Clicking "Enter Exam" starts your timer and opens fullscreen mode. You cannot pause once started.</span>
+            <span style="color:var(--text-300)"> Clicking "Enter Exam" starts your timer and opens fullscreen mode automatically. You cannot pause once started.</span>
           </div>
         </div>
 
@@ -137,12 +162,46 @@ const roundId = params.get('round')
 if (!roundId) { window.location.replace('/test/'); throw 0 }
 
 let incognitoConfirmed = false
+let regTimerExpired    = false
 
 const toggle = document.getElementById('incognito-toggle')
 toggle.addEventListener('click', () => {
   toggle.classList.toggle('on')
   incognitoConfirmed = toggle.classList.contains('on')
 })
+
+// ── 15-minute registration countdown ──
+const REG_TIMEOUT_MS = 15 * 60 * 1000
+const regStart = Date.now()
+
+function tickRegTimer() {
+  const elapsed   = Date.now() - regStart
+  const remaining = Math.max(0, REG_TIMEOUT_MS - elapsed)
+  const min = Math.floor(remaining / 60000)
+  const sec = Math.floor((remaining % 60000) / 1000)
+  const display = `${min}:${String(sec).padStart(2,'0')}`
+  document.getElementById('reg-timer-val').textContent = display
+
+  const box = document.getElementById('reg-timer-box')
+  if (remaining <= 60000) {
+    box.classList.add('critical')
+  } else {
+    box.classList.remove('critical')
+  }
+
+  if (remaining <= 0 && !regTimerExpired) {
+    regTimerExpired = true
+    document.getElementById('timer-expired-msg').classList.remove('hidden')
+    const btn = document.getElementById('btn-enter')
+    btn.disabled = true
+    btn.textContent = 'Time expired — refresh to retry'
+    return
+  }
+  if (!regTimerExpired) {
+    requestAnimationFrame(() => setTimeout(tickRegTimer, 500))
+  }
+}
+tickRegTimer()
 
 async function loadRound() {
   try {
@@ -160,6 +219,7 @@ async function loadRound() {
 
 document.getElementById('form-register').addEventListener('submit', async e => {
   e.preventDefault()
+  if (regTimerExpired) { toastError('Registration time expired. Please refresh the page.'); return }
   if (!incognitoConfirmed) {
     alert('Please confirm you are using incognito / private mode before proceeding.')
     return
@@ -197,6 +257,7 @@ document.getElementById('form-register').addEventListener('submit', async e => {
       candidate_name:   fd.get('candidate_name'),
     })
 
+    // Request fullscreen before navigation — browser allows it since it's a user gesture
     try { await document.documentElement.requestFullscreen() } catch {}
     window.location.replace(`/test/exam.html?round=${roundId}`)
   } catch (err) {
