@@ -183,6 +183,7 @@ export function roundTypeBadge(type) {
   const map = {
     output_prediction: ['blue',  'Output Prediction'],
     mcq:               ['indigo','MCQ'],
+    coding:            ['amber', 'Coding'],
     // legacy (keep for display of old data)
     live_coding:       ['gray',  'Live Coding'],
     c_programming:     ['gray',  'C Programming'],

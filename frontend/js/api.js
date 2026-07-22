@@ -92,11 +92,24 @@ export const api = {
     fetch(`/api/test/${roundId}/questions?token=${encodeURIComponent(token)}${includeHidden ? '&include_hidden=true' : ''}`)
       .then(r => r.json()),
 
-  // Submit MCQ or output prediction answer (server-side scoring)
+  // Submit MCQ, output prediction, or coding answer (server-side scoring)
   submitAnswer: (body) =>
     fetch('/api/test/answer', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+    }).then(r => r.json()),
+
+  // Run code against visible test cases (no submission saved)
+  executeC: (session_token, code, test_cases) =>
+    fetch('/api/test/execute-c', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_token, code, test_cases }),
+    }).then(r => r.json()),
+
+  executePy: (session_token, code, test_cases) =>
+    fetch('/api/test/execute-py', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_token, code, test_cases }),
     }).then(r => r.json()),
 
   getSessionStatus: (sessionId, token) =>
