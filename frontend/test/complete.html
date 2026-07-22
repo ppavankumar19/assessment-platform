@@ -17,6 +17,20 @@
     }
     .icon-animate { animation: check-in .5s cubic-bezier(.34,1.56,.64,1) both; }
     .content-animate { animation: fade-up .4s ease .3s both; }
+    .complete-page {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: var(--bg-950); padding: 1.5rem;
+    }
+    .complete-card {
+      background: var(--bg-800); border: 1px solid var(--border);
+      border-radius: 1rem; padding: 2.5rem;
+      max-width: 480px; width: 100%; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.08);
+    }
+    .complete-icon {
+      font-size: 3rem; margin-bottom: 1rem; display: block;
+    }
+    .hidden { display:none !important; }
   </style>
 </head>
 <body>
@@ -30,29 +44,29 @@
 
   <!-- Success -->
   <div class="complete-card hidden" id="card-done" style="border-color:rgba(16,185,129,.25)">
-    <div class="complete-icon icon-animate" style="color:var(--green-400)">&#10003;</div>
+    <span class="complete-icon icon-animate" style="color:var(--green-400)">&#10003;</span>
     <div class="content-animate">
       <h2 id="done-title" style="font-size:1.5rem;margin-bottom:.5rem">Assessment Submitted</h2>
       <p class="mt-2 mb-6" id="done-msg" style="color:var(--text-300);line-height:1.6">Your responses have been recorded successfully.</p>
       <div id="done-status"></div>
-      <div class="mt-6">
-        <a href="/test/" class="btn btn-primary btn-lg">Back to Portal</a>
-      </div>
+      <p style="margin-top:1.5rem;font-size:.8125rem;color:var(--text-500);line-height:1.5">
+        Results will be communicated by the assessment organiser. You may close this window.
+      </p>
     </div>
   </div>
 
   <!-- Disqualified -->
   <div class="complete-card hidden" id="card-disq" style="border-color:rgba(220,38,38,.25)">
-    <div class="complete-icon icon-animate" style="color:var(--red-400)">&#9888;</div>
+    <span class="complete-icon icon-animate" style="color:var(--red-400)">&#9888;</span>
     <div class="content-animate">
       <h2 style="font-size:1.5rem;margin-bottom:.5rem;color:var(--red-400)">Session Disqualified</h2>
       <p style="color:var(--text-300);line-height:1.6;margin-top:.5rem;margin-bottom:1.5rem">
         Your session was ended due to a policy violation — tab switch or fullscreen exit detected.
       </p>
-      <div class="info-box danger" style="text-align:left;font-size:.875rem;margin-bottom:1.5rem">
+      <div style="padding:.75rem 1rem;background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);border-radius:var(--radius);text-align:left;font-size:.875rem;color:var(--red-500);margin-bottom:1.5rem">
         If you believe this is an error, please contact your exam administrator.
       </div>
-      <a href="/test/" class="btn btn-ghost">Back to Portal</a>
+      <p style="font-size:.8125rem;color:var(--text-500)">You may close this window.</p>
     </div>
   </div>
 
@@ -87,7 +101,7 @@ setTimeout(() => {
       } else {
         document.getElementById('card-done').classList.remove('hidden')
         document.getElementById('done-title').textContent = `Well done, ${session.candidate_name || 'Candidate'}!`
-        document.getElementById('done-msg').textContent   = 'Your assessment has been submitted successfully. Results will be communicated by the organizer.'
+        document.getElementById('done-msg').textContent   = 'Your assessment has been submitted successfully.'
         document.getElementById('done-status').innerHTML  = `
           <div style="display:inline-flex;align-items:center;gap:.625rem;background:var(--bg-750);border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:.625rem 1rem;">
             <span style="font-size:.75rem;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;font-weight:600;">Round</span>
