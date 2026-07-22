@@ -1,126 +1,147 @@
 # Assessment Platform
 
-A full-stack recruitment assessment platform for technical hiring. Built with **Node.js + Fastify** on the backend and **Vanilla HTML/CSS/JavaScript** on the frontend — no frameworks, no build step.
+A full-stack technical assessment platform for college placements and hiring drives. Built with **Node.js + Fastify** on the backend and **Vanilla HTML/CSS/JS** on the frontend — no frameworks, no build step.
+
+---
+
+## Assessment Types
+
+| Type | How it works |
+|------|-------------|
+| **Output Prediction** | Candidates read a code snippet and predict what it prints. Auto-graded with exact-match + partial-credit scoring. |
+| **MCQ** | Multiple-choice questions with 4 options (A–D). Server-side scoring; correct option never exposed to candidates. |
+
+---
 
 ## Features
 
-### Assessment Types
-- **Output Prediction**: Candidates predict the output of code snippets. Auto-graded with exact-match scoring.
-- **Live Coding (Python)**: Candidates write Python code in a Monaco editor. Executed entirely in the browser via Pyodide (WebAssembly) — no server-side execution required.
-- **Live Coding (C)**: Candidates write C code compiled and executed server-side via `gcc`. Full test case evaluation with TLE detection.
-- **MCQ**: Multiple choice questions.
+### Admin Portal
+- **Round CRUD** — create, edit, publish, pause, unpublish assessment rounds
+- **Question CRUD** — rich editor with MCQ options or code snippet + test cases
+- **Draft questions** — toggle any question to draft (hidden from candidates until published)
+- **Auto-distribute points** — test case points split equally from the question's total; updates live
+- **Question Library** — reusable question bank; import into any round in one click
+- **Cutoff score** — set passing threshold per round; used for CSV export filtering
+- **Session management** — view candidates, disqualify, delete sessions
+- **Typing replay** — playback page with keystroke timeline, Monaco viewer, paste markers
+- **CSV export** — export all results or cutoff-filtered finalists
 
 ### Anti-Cheat System
-- Fullscreen enforcement with auto-disqualification on exit
-- Tab switch / window blur monitoring with instant session termination
-- Paste detection and keystroke replay recording
-- Context menu and DevTools shortcut blocking
-- Session status polling — admin can remotely disqualify in real time
-- Complete audit trail of all candidate events written to `audit_logs`
+- **Fullscreen enforcement** — auto-disqualifies on exit
+- **Tab switch monitoring** — session terminated instantly on visibility change
+- **Paste detection** — logged with content for malpractice review
+- **DevTools / hotkey blocking** — Ctrl+U, F12 blocked
+- **Session status polling** — admin can remotely disqualify a live session in real time
+- **15-minute registration timer** — candidates must complete registration before it expires
+- **Audit trail** — every candidate event written to `audit_logs`
 
-### Admin Dashboard
-- Round CRUD with publish / pause / unpublish lifecycle
-- Question management with expandable cards, starter code, and per-case test case editor
-- Visible and hidden test cases with per-case points
-- Cutoff score per round (click stat card to edit inline)
-- Candidate session management — delete or disqualify from the sessions table
-- Typing replay viewer (keystroke playback per question, Monaco viewer, paste markers)
-- CSV export — all results or cutoff-filtered
+### Candidate Flow (no login required)
+1. Browse published rounds at `/test/`
+2. Read rules + confirm incognito mode + register details (`/test/entry.html`)
+3. Exam auto-enters fullscreen and starts timer (`/test/exam.html`)
+4. MCQ: select one of A–D and submit per question
+5. Output Prediction: type predicted output per visible test case and submit
+6. Auto-submit on timer expiry, tab switch, or fullscreen exit
+7. Completion screen shows result or disqualification reason (`/test/complete.html`)
 
-### Public Test Flow (No Auth for Candidates)
-- Candidates register with name, email, college, roll number, and branch
-- Session token-based flow — no Supabase auth needed for test takers
-- Incognito mode confirmation + rules page before entry
-- Fullscreen-enforced exam environment
-- Auto-submit on timer expiry, tab switch, or fullscreen exit
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Node.js 22 + Fastify 4 (ES modules) |
-| Frontend | Vanilla HTML + CSS + JavaScript |
+| Backend | Node.js 22+ · Fastify 4 · ES modules |
+| Frontend | Vanilla HTML · CSS custom properties · ES module JS |
 | Database | PostgreSQL via Supabase |
-| Auth | Supabase Auth (Google OAuth + Magic Link) |
-| Code Editor | Monaco Editor (CDN) |
-| Python Execution | Pyodide (browser WebAssembly) |
-| C Execution | gcc (server-side, via Docker) |
+| Admin Auth | Supabase Auth (Google OAuth + Magic Link) |
+| Code display | Monaco Editor (CDN, read-only) |
 | Deployment | Render.com (Docker) |
+
+---
 
 ## Project Structure
 
 ```
 assessment-platform/
-├── backend/                    # Fastify API server
-│   ├── server.js               # Entry point — registers routes + serves frontend/
-│   ├── app.js                  # Fastify app builder (routes, middleware, CORS)
+├── backend/
+│   ├── server.js               # Entry — registers Fastify app + serves frontend/
+│   ├── app.js                  # Route registrations, CORS, rate-limit, error handler
 │   ├── lib/
 │   │   ├── db.js               # Supabase service-role client
 │   │   └── scoring.js          # normalizeOutput, computeDerivedMetrics
 │   ├── middleware/
-│   │   └── auth.js             # requireAdmin — verifies Supabase token + role
+│   │   └── auth.js             # requireAdmin (Supabase token + role check)
 │   ├── routes/
 │   │   ├── auth.js             # GET /api/auth/user
 │   │   ├── admin/
 │   │   │   ├── rounds.js       # Round CRUD + publish/pause/export
-│   │   │   ├── questions.js    # Question CRUD with test cases
-│   │   │   └── sessions.js     # GET/DELETE/disqualify sessions
+│   │   │   ├── questions.js    # Question + test case CRUD
+│   │   │   ├── sessions.js     # GET/DELETE/disqualify sessions
+│   │   │   └── library.js      # Library CRUD + import to round
 │   │   └── test/
 │   │       ├── rounds.js       # GET /api/test/rounds (public)
 │   │       ├── register.js     # POST register + start session
-│   │       ├── questions.js    # GET questions for active session
-│   │       ├── submit.js       # POST submit answer
-│   │       ├── execute_c.js    # POST /api/test/execute-c (gcc compile + run)
+│   │       ├── questions.js    # GET questions (strips correct MCQ option)
+│   │       ├── answer.js       # POST /api/test/answer (MCQ + OP, server-side scoring)
 │   │       └── session.js      # complete / event / status
 │   ├── package.json
 │   └── .env.example
 │
-├── frontend/                   # Static HTML/CSS/JS (no build step)
-│   ├── css/app.css             # Complete design system (CSS custom properties)
+├── frontend/
+│   ├── css/app.css             # Design system — dark theme, CSS custom properties
 │   ├── js/
-│   │   ├── api.js              # All API fetch methods in one module
-│   │   ├── utils.js            # Toast, modal, formatTime, badges, DOM helpers
-│   │   └── pyodide-worker.js   # Web Worker for browser Python execution
-│   ├── index.html              # Root — redirects admins to /admin/, others to /test/
+│   │   ├── api.js              # All API fetch methods
+│   │   └── utils.js            # Toast, modal, formatTime, badges, session helpers
+│   ├── index.html              # Root redirect (admin → /admin/, else → /test/)
 │   ├── login.html              # Admin login (Supabase OAuth + magic link)
 │   ├── admin/
-│   │   ├── index.html          # Dashboard (stats + rounds list)
-│   │   ├── round.html          # Round detail (questions + sessions tabs)
-│   │   └── playback.html       # Typing replay viewer (Monaco + slider)
+│   │   ├── index.html          # Dashboard — stats + rounds list
+│   │   ├── round.html          # Round detail — questions, sessions, library import
+│   │   ├── library.html        # Question Library CRUD portal
+│   │   └── playback.html       # Keystroke replay viewer
 │   └── test/
 │       ├── index.html          # Candidate landing (published rounds)
-│       ├── entry.html          # Rules + registration form
-│       ├── exam.html           # Exam (Monaco editor + Pyodide/gcc + anti-cheat)
-│       └── complete.html       # Completion / disqualification page
+│       ├── entry.html          # Rules + 15-min registration timer
+│       ├── exam.html           # Exam — MCQ or Output Prediction, anti-cheat
+│       └── complete.html       # Completion / disqualification screen
+│
+├── scripts/
+│   └── seed-sample-data.mjs   # Seed 3 sample rounds (run from backend/ dir)
 │
 ├── supabase/
 │   └── migrations/
-│       └── 00003_reset_correct_schema.sql   # Run this for fresh installs
+│       ├── 00003_reset_correct_schema.sql   # Fresh install — drops + recreates all tables
+│       └── 00004_mcq_library_draft.sql      # Adds MCQ, Library, Draft support
 │
-├── Dockerfile                  # Node 22 + gcc — used by Render
-├── render.yaml                 # Render.com deployment blueprint
+├── Dockerfile
+├── render.yaml
 └── .dockerignore
 ```
+
+---
 
 ## Setup
 
 ### Prerequisites
 - Node.js 22+
-- A Supabase project (database + auth)
+- Supabase project (free tier works)
 
-### 1. Install backend dependencies
+### 1. Clone and install
+
 ```bash
-cd backend
+git clone <repo-url>
+cd assessment-platform/backend
 npm install
 ```
 
 ### 2. Configure environment
+
 ```bash
 cp .env.example .env
 ```
 
-Fill in `.env`:
-```
+Edit `backend/.env`:
+```env
 PORT=4000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
@@ -129,93 +150,139 @@ FRONTEND_URL=http://localhost:4000
 ```
 
 ### 3. Configure Supabase credentials in the login page
-Open `frontend/login.html` and update the two constants near the top of the `<script>` block:
+
+Open `frontend/login.html` and set the two constants near the top of the `<script>` block:
+
 ```js
 const SUPABASE_URL  = 'https://your-project.supabase.co'
 const SUPABASE_ANON = 'your-anon-key'
 ```
 
-In Supabase Dashboard → Authentication → URL Configuration, set:
-- **Site URL**: your deployed app URL (e.g. `https://your-app.onrender.com`)
-- **Redirect URLs**: `https://your-app.onrender.com/**`
+In Supabase Dashboard → Authentication → URL Configuration:
+- **Site URL**: `http://localhost:4000` (local) or your Render URL
+- **Redirect URLs**: add `http://localhost:4000/login.html` and `https://your-app.onrender.com/login.html`
 
-For local development also add `http://localhost:4000/login.html` as a redirect URL.
+### 4. Run database migrations
 
-### 4. Run database migration
-Run in Supabase Dashboard → SQL Editor:
-```
-supabase/migrations/00003_reset_correct_schema.sql
-```
+In **Supabase Dashboard → SQL Editor**, run in order:
 
-This drops and recreates all tables with the correct schema. At the end of the file, uncomment and run:
+1. `supabase/migrations/00003_reset_correct_schema.sql` — fresh schema (drops everything first)
+2. `supabase/migrations/00004_mcq_library_draft.sql` — adds MCQ options, draft, and library table
+
+### 5. Bootstrap your admin account
+
+Sign in at `http://localhost:4000/login.html` with Google or magic link. Then in Supabase SQL Editor:
+
 ```sql
-UPDATE users SET role = 'admin' WHERE email = 'you@gmail.com';
+UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
 ```
 
-### 5. Local development
+### 6. Start development server
+
 ```bash
 cd backend
-npm run dev        # starts Fastify on http://localhost:4000
+npm run dev    # http://localhost:4000  (auto-restarts on file changes)
 ```
 
-### 6. Bootstrap the first admin
-Sign in via Google at `/login.html`. Then run in Supabase SQL Editor:
-```sql
-UPDATE users SET role = 'admin' WHERE email = 'you@gmail.com';
+### 7. (Optional) Seed sample data
+
+Creates 3 live sample rounds: Python Basics, CS Fundamentals MCQ, Code Output Challenge.
+
+```bash
+node --env-file=backend/.env scripts/seed-sample-data.mjs
+# Note: run from the project root but the script must resolve node_modules in backend/
+# Alternatively: cp scripts/seed-sample-data.mjs backend/ && cd backend && node --env-file=.env seed-sample-data.mjs
 ```
+
+---
 
 ## Deployment (Render.com)
 
-The repo includes a `Dockerfile` and `render.yaml` for one-click deployment on Render.
+1. Push repo to GitHub
+2. Render → **New → Web Service** → connect repo → select **Docker** environment
+3. Set environment variables in Render dashboard:
+   | Variable | Value |
+   |----------|-------|
+   | `SUPABASE_URL` | your Supabase project URL |
+   | `SUPABASE_ANON_KEY` | anon/public key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service role key (keep secret) |
+   | `FRONTEND_URL` | `https://your-app.onrender.com` |
 
-1. Push the repo to GitHub
-2. Go to [render.com](https://render.com) → **New → Blueprint** → connect your repo
-3. Render picks up `render.yaml` automatically — select **Docker** as runtime
-4. Set secrets in the Render dashboard (Environment tab):
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `FRONTEND_URL` → your Render app URL (e.g. `https://your-app.onrender.com`)
+> **Free tier note:** Instance sleeps after 15 min of inactivity. First request after wake takes ~30–50 s.
 
-The Dockerfile installs `gcc` so C code compilation works out of the box.
+---
 
-> **Free tier note:** The free instance spins down after 15 min of inactivity. First request after sleep takes ~50s.
+## API Reference
 
-## API Routes
+### Admin Routes
+Require `Authorization: Bearer <supabase_access_token>` header and `role = 'admin'`.
 
-### Admin Routes (require `Authorization: Bearer <supabase_access_token>` + admin role)
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/user` | Get current user profile |
+| GET | `/api/auth/user` | Current admin profile |
 | GET | `/api/admin/rounds` | List all rounds |
 | POST | `/api/admin/rounds` | Create round |
-| GET | `/api/admin/rounds/:id` | Round detail with questions |
+| GET | `/api/admin/rounds/:id` | Round + questions + sessions stats |
 | PUT | `/api/admin/rounds/:id` | Update round |
 | DELETE | `/api/admin/rounds/:id` | Delete round |
-| POST | `/api/admin/rounds/:id/publish` | Publish round |
-| POST | `/api/admin/rounds/:id/unpublish` | Unpublish round |
-| POST | `/api/admin/rounds/:id/pause` | Pause round |
-| GET | `/api/admin/rounds/:id/sessions` | Sessions for a round |
-| GET | `/api/admin/rounds/:id/export` | Export CSV (`?finalized=true` for cutoff filter) |
-| POST | `/api/admin/questions` | Create question |
+| POST | `/api/admin/rounds/:id/publish` | Publish (visible to candidates) |
+| POST | `/api/admin/rounds/:id/unpublish` | Unpublish |
+| POST | `/api/admin/rounds/:id/pause` | Pause (published but no new sessions) |
+| GET | `/api/admin/rounds/:id/sessions` | All candidate sessions |
+| GET | `/api/admin/rounds/:id/export` | CSV (`?finalized=true` = cutoff filter) |
+| POST | `/api/admin/questions` | Create question (with test cases) |
 | PUT | `/api/admin/questions/:id` | Update question |
 | DELETE | `/api/admin/questions/:id` | Delete question |
-| GET | `/api/admin/sessions/:id` | Session detail (for playback) |
+| GET | `/api/admin/library` | List library questions (`?type=&search=`) |
+| POST | `/api/admin/library` | Add to library |
+| PUT | `/api/admin/library/:id` | Update library question |
+| DELETE | `/api/admin/library/:id` | Delete from library |
+| POST | `/api/admin/library/:id/import` | Import to a round (`{round_id}`) |
+| GET | `/api/admin/sessions/:id` | Session detail (playback data) |
 | DELETE | `/api/admin/sessions/:id` | Delete session |
 | POST | `/api/admin/sessions/:id/disqualify` | Disqualify candidate |
 
-### Public Test Routes (session token via query param or body)
+### Public Test Routes
+No authentication. Session token passed via query param `?token=` or request body.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/test/rounds` | Published rounds |
-| POST | `/api/test/:roundId/register` | Register candidate, get session_token |
-| POST | `/api/test/:roundId/start` | Start session, get expires_at |
-| GET | `/api/test/:roundId/questions` | Questions (`?token=...&include_hidden=true`) |
-| POST | `/api/test/submit` | Submit answer |
-| POST | `/api/test/execute-c` | Compile and run C code (server-side gcc) |
-| GET | `/api/test/session/:id/status` | Poll session status (`?token=...`) |
+| GET | `/api/test/rounds` | Published + active rounds |
+| POST | `/api/test/:roundId/register` | Register candidate, receive `session_token` |
+| POST | `/api/test/:roundId/start` | Start session, receive `expires_at` |
+| GET | `/api/test/:roundId/questions` | Questions for active session (MCQ options stripped of correct answer) |
+| POST | `/api/test/answer` | Submit MCQ or Output Prediction answer (server-side scored) |
+| GET | `/api/test/session/:id/status` | Poll session status (for admin disqualification) |
 | POST | `/api/test/session/:id/complete` | Mark session complete |
 | POST | `/api/test/session/:id/event` | Log audit event (auto-disqualifies on violations) |
+
+---
+
+## Database Schema (key tables)
+
+```
+rounds            — title, round_type (output_prediction|mcq), duration_minutes, is_published, is_active, cutoff_score
+questions         — round_id, title, description, question_type, points, starter_code, mcq_options (JSONB), is_draft
+test_cases        — question_id, input, expected_output, is_hidden, points
+library_questions — title, description, question_type, points, starter_code, mcq_options, tags[]
+candidate_sessions— session_token, candidate_name/email/college/roll_no/branch, status, score
+submissions       — session_id, question_id, code (MCQ: selected option), score, status, test_results (JSONB)
+audit_logs        — session_id, event_type, event_data
+```
+
+---
+
+## Sample Data
+
+The seed script creates three ready-to-use rounds:
+
+| Round | Type | Questions | Duration |
+|-------|------|-----------|----------|
+| Python Basics | Output Prediction | 2 (Even/Odd, Print N) | 30 min |
+| CS Fundamentals MCQ | MCQ | 5 (algorithms, syntax, HTML) | 20 min |
+| Code Output Challenge | Output Prediction | 5 (slicing, loops, methods) | 45 min |
+
+---
 
 ## License
 
