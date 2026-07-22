@@ -123,6 +123,33 @@
       border-radius: var(--radius); font-size: .875rem; color: var(--text-400);
       flex-direction: column; gap: .5rem; pointer-events: none;
     }
+
+    /* Coding question */
+    .coding-lang-select {
+      background: var(--bg-750); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-200); font-size: .8125rem; padding: .2rem .5rem; cursor: pointer;
+    }
+    .tc-run-result {
+      padding: .5rem .75rem; border-radius: var(--radius); margin-bottom: .375rem;
+      border: 1px solid var(--border); font-size: .8125rem;
+    }
+    .tc-run-result.pass { border-color: rgba(5,150,105,.3); background: rgba(5,150,105,.06); }
+    .tc-run-result.fail { border-color: rgba(220,38,38,.2); background: rgba(220,38,38,.04); }
+    .tc-run-result.tle  { border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.06); }
+    .tc-run-result pre  { font-family:'JetBrains Mono',monospace; font-size:.75rem; margin:.25rem 0 0;
+                          white-space:pre-wrap; color:var(--text-300); max-height:4rem; overflow-y:auto; }
+    .coding-sample-case {
+      background: var(--bg-800); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: .625rem .875rem; margin-bottom: .5rem;
+    }
+    .coding-sample-case .io-row { display:flex; gap:1rem; margin-top:.375rem; }
+    .coding-sample-case .io-col { flex:1; min-width:0; }
+    .coding-sample-case .io-label { font-size:.6875rem; font-weight:600; color:var(--text-400);
+      text-transform:uppercase; letter-spacing:.07em; margin-bottom:.2rem; }
+    .coding-sample-case pre { font-family:'JetBrains Mono',monospace; font-size:.75rem;
+      background:var(--bg-750); border:1px solid var(--border); border-radius:var(--radius);
+      padding:.3rem .5rem; margin:0; white-space:pre-wrap; color:var(--text-200);
+      max-height:4rem; overflow-y:auto; }
   </style>
 </head>
 <body>
@@ -183,6 +210,12 @@
         <!-- MCQ only: description block (no code) -->
         <div id="mcq-left-body" class="hidden" style="flex:1;overflow-y:auto;padding:.75rem 1.25rem"></div>
 
+        <!-- Coding only: sample test cases (visible, with expected output) -->
+        <div id="coding-samples-wrap" class="hidden" style="flex:1;overflow-y:auto;padding:.5rem .875rem .75rem">
+          <div style="font-size:.6875rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">Sample Test Cases</div>
+          <div id="coding-samples-list"></div>
+        </div>
+
         <!-- Question dots (always at bottom) -->
         <div style="flex-shrink:0;padding:.625rem 1rem;border-top:1px solid var(--border)">
           <div class="q-dots" id="q-dots"></div>
@@ -202,6 +235,32 @@
         <div id="mcq-options-list"></div>
         <button class="btn btn-success w-full mt-4" id="btn-submit-mcq" style="padding:.625rem">&#10003; Submit Answer</button>
         <div id="mcq-result-area" class="mt-3"></div>
+      </div>
+
+      <!-- Coding answer area -->
+      <div id="coding-answer-area" class="hidden" style="flex:1;display:flex;flex-direction:column;min-height:0">
+        <div class="answer-panel-header" style="flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:.625rem">
+            <span id="coding-lang-label">Language</span>
+            <select id="coding-lang-select" class="coding-lang-select">
+              <option value="python">Python 3</option>
+              <option value="c">C (gcc)</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-run-code" style="padding:.3125rem .75rem">&#9654; Run</button>
+        </div>
+        <div id="coding-editor-wrap" style="flex:1;min-height:0;position:relative">
+          <div id="coding-editor-container" style="height:100%"></div>
+          <div class="locked-overlay hidden" id="coding-locked"></div>
+        </div>
+        <div id="coding-results-wrap" style="display:none;max-height:38%;overflow-y:auto;border-top:1px solid var(--border);padding:.625rem .875rem;flex-shrink:0">
+          <div style="font-size:.6875rem;font-weight:600;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.375rem" id="coding-results-label">Run Results</div>
+          <div id="coding-results-list"></div>
+        </div>
+        <div style="padding:.625rem .875rem;border-top:1px solid var(--border);flex-shrink:0">
+          <button class="btn btn-success w-full" id="btn-submit-coding" style="padding:.5625rem">&#10003; Submit Code</button>
+          <div id="coding-submit-result" class="mt-2"></div>
+        </div>
       </div>
 
       <!-- Output Prediction answer area -->
@@ -254,12 +313,13 @@ if (!session?.session_id || !session?.expires_at) {
 // ── State ──
 let questions     = []
 let currentIdx    = 0
-let answers       = {}   // {qid: {type:'mcq', selected:'A'} | {type:'op', predictions:{caseId: text}}}
+let answers       = {}   // {qid: {type:'mcq', selected:'A'} | {type:'op', predictions:{}} | {type:'coding', code:'', language:''}}
 let submitted     = new Set()
 let results       = {}   // {qid: server response}
 let hasCompleted  = false
 let isSubmitting  = false
-let monacoEditor  = null
+let monacoEditor  = null   // read-only editor for output prediction
+let codingEditor  = null   // writable editor for coding
 let monacoReady   = false
 
 const roundType = session.round_type || 'output_prediction'
@@ -273,9 +333,11 @@ const roundType = session.round_type || 'output_prediction'
   } catch {}
 })()
 
-// ── Monaco for code display (Output Prediction) ──
+// ── Monaco initialization ──
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
+
 if (roundType === 'output_prediction') {
-  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
+  // Read-only code display for output prediction
   require(['vs/editor/editor.main'], () => {
     monacoEditor = monaco.editor.create(document.getElementById('code-editor-container'), {
       value:               '// Loading...',
@@ -294,15 +356,49 @@ if (roundType === 'output_prediction') {
       fontLigatures:       true,
     })
     monacoReady = true
-    // Render current question once editor is ready
+    if (questions.length) renderQuestion(currentIdx)
+  })
+} else if (roundType === 'coding') {
+  // Writable code editor for coding rounds
+  document.getElementById('code-area-wrap').style.display = 'none'
+  document.getElementById('tc-inputs-wrap').style.display = 'none'
+  document.getElementById('coding-samples-wrap').classList.remove('hidden')
+  require(['vs/editor/editor.main'], () => {
+    codingEditor = monaco.editor.create(document.getElementById('coding-editor-container'), {
+      value:               '# Write your solution here\n',
+      language:            'python',
+      theme:               'vs-dark',
+      fontSize:            13,
+      minimap:             { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap:            'off',
+      lineNumbers:         'on',
+      readOnly:            false,
+      automaticLayout:     true,
+      padding:             { top: 8 },
+      fontFamily:          "'JetBrains Mono', 'Fira Code', monospace",
+      fontLigatures:       true,
+    })
+    // Save code on change
+    codingEditor.onDidChangeModelContent(() => {
+      const q = questions[currentIdx]
+      if (!q) return
+      if (!answers[q.id]) answers[q.id] = { type: 'coding', code: '', language: currentCodingLang() }
+      answers[q.id].code = codingEditor.getValue()
+    })
+    monacoReady = true
     if (questions.length) renderQuestion(currentIdx)
   })
 } else {
-  // MCQ: hide code area
+  // MCQ: hide code areas
   document.getElementById('code-area-wrap').style.display = 'none'
   document.getElementById('tc-inputs-wrap').style.display = 'none'
   document.getElementById('mcq-left-body').classList.remove('hidden')
   monacoReady = true
+}
+
+function currentCodingLang() {
+  return document.getElementById('coding-lang-select')?.value || 'python'
 }
 
 // ── Load questions ──
@@ -317,7 +413,9 @@ async function loadQuestions() {
     updateButtons()
 
     // Set round type badge
-    const rtLabel = roundType === 'mcq' ? 'MCQ' : 'Output Prediction'
+    const rtLabel = roundType === 'mcq' ? 'MCQ'
+                  : roundType === 'coding' ? 'Coding'
+                  : 'Output Prediction'
     document.getElementById('round-type-badge').textContent = rtLabel
   } catch (e) {
     toastError('Failed to load questions: ' + e.message)
@@ -342,6 +440,8 @@ function renderQuestion(idx) {
 
   if (q.question_type === 'mcq') {
     renderMCQQuestion(q, isLocked)
+  } else if (q.question_type === 'coding') {
+    renderCodingQuestion(q, isLocked)
   } else {
     renderOPQuestion(q, isLocked)
   }
@@ -496,6 +596,137 @@ function renderOPQuestion(q, isLocked) {
   }
 }
 
+function renderCodingQuestion(q, isLocked) {
+  // Show coding areas, hide others
+  document.getElementById('mcq-answer-area').classList.add('hidden')
+  document.getElementById('op-answer-area').classList.add('hidden')
+  document.getElementById('coding-answer-area').classList.remove('hidden')
+  document.getElementById('mcq-left-body').classList.add('hidden')
+  document.getElementById('code-area-wrap').style.display = 'none'
+  document.getElementById('tc-inputs-wrap').style.display = 'none'
+  document.getElementById('coding-samples-wrap').classList.remove('hidden')
+
+  document.getElementById('answer-label').textContent = 'Write Code'
+
+  // Language selector: lock if question specifies a single language
+  const langSelect = document.getElementById('coding-lang-select')
+  const langLabel  = document.getElementById('coding-lang-label')
+  const qLang = q.language || 'any'
+  if (qLang === 'any') {
+    langSelect.disabled = isLocked
+    langSelect.style.display = ''
+    langLabel.textContent = 'Language'
+  } else {
+    langSelect.value    = qLang
+    langSelect.disabled = true
+    langSelect.style.display = ''
+    langLabel.textContent = 'Language (fixed)'
+  }
+
+  // Restore saved answer or load starter code
+  const saved = answers[q.id]
+  const savedLang = saved?.language || (qLang !== 'any' ? qLang : 'python')
+  langSelect.value = savedLang
+
+  // Update Monaco language
+  if (codingEditor) {
+    const monacoLang = savedLang === 'c' ? 'c' : 'python'
+    monaco.editor.setModelLanguage(codingEditor.getModel(), monacoLang)
+    const savedCode = saved?.code ?? (q.starter_code || '')
+    codingEditor.setValue(savedCode)
+    codingEditor.setScrollPosition({ scrollTop: 0 })
+  }
+
+  // Locked overlay
+  document.getElementById('coding-locked')?.classList.toggle('hidden', !isLocked)
+  document.getElementById('btn-run-code').disabled    = isLocked
+  document.getElementById('btn-submit-coding').classList.toggle('hidden', isLocked)
+
+  // Show submit result if already submitted
+  const submitResultEl = document.getElementById('coding-submit-result')
+  if (isLocked && results[q.id]) {
+    const r = results[q.id]
+    const passed = (r.test_results || []).filter(x => x.passed).length
+    const total  = r.test_results?.length || 0
+    submitResultEl.innerHTML = `
+      <div class="result-summary" style="background:${passed===total?'rgba(5,150,105,.08)':'rgba(217,119,6,.08)'};border:1px solid ${passed===total?'rgba(5,150,105,.2)':'rgba(217,119,6,.2)'};color:${passed===total?'var(--green-600)':'var(--amber-500)'}">
+        ${passed===total?'&#10004;':'&#9888;'} ${passed}/${total} test cases passed
+        <span style="margin-left:auto">Score: ${r.score} pts</span>
+      </div>`
+    // Show visible test case results
+    showCodingRunResults(r.test_results || [], false)
+  } else {
+    submitResultEl.innerHTML = ''
+    document.getElementById('coding-results-wrap').style.display = 'none'
+  }
+
+  // Visible test cases as examples on left panel
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  const samplesList = document.getElementById('coding-samples-list')
+  if (visible.length === 0) {
+    samplesList.innerHTML = `<p class="text-xs text-muted">No sample test cases provided.</p>`
+  } else {
+    samplesList.innerHTML = visible.map((tc, i) => `
+      <div class="coding-sample-case">
+        <div style="font-size:.75rem;font-weight:600;color:var(--text-300)">Sample ${i + 1}
+          <span style="font-weight:400;color:var(--text-500)">(${tc.points} pts)</span>
+        </div>
+        <div class="io-row">
+          <div class="io-col"><div class="io-label">Input</div><pre>${escHtml(tc.input || '(empty)')}</pre></div>
+          <div class="io-col"><div class="io-label">Expected Output</div><pre>${escHtml(tc.expected_output)}</pre></div>
+        </div>
+      </div>`).join('')
+  }
+  const hidden = (q.test_cases?.length || 0) - visible.length
+  if (hidden > 0) {
+    samplesList.innerHTML += `<p class="text-xs text-muted" style="margin-top:.375rem">+ ${hidden} hidden test case${hidden>1?'s':''} will run on Submit.</p>`
+  }
+}
+
+function showCodingRunResults(testResults, isRun = true) {
+  const wrap = document.getElementById('coding-results-wrap')
+  const list = document.getElementById('coding-results-list')
+  const label = document.getElementById('coding-results-label')
+  label.textContent = isRun ? 'Run Results (visible cases)' : 'Submission Results'
+  wrap.style.display = ''
+
+  if (!testResults.length) {
+    list.innerHTML = `<p class="text-xs text-muted">No results.</p>`
+    return
+  }
+
+  // Check compile error
+  if (testResults[0]?.compile_error) {
+    list.innerHTML = `
+      <div class="tc-run-result fail">
+        <strong>Compilation Error</strong>
+        <pre>${escHtml(testResults[0].stderr || 'Unknown error')}</pre>
+      </div>`
+    return
+  }
+
+  list.innerHTML = testResults.map((r, i) => {
+    const cls   = r.timed_out ? 'tle' : r.passed ? 'pass' : 'fail'
+    const label = r.timed_out ? 'TLE' : r.passed ? '&#10004; Passed' : '&#10008; Wrong'
+    const pts   = r.passed ? `+${r.score} pts` : '0 pts'
+    const stderr = r.stderr ? `<pre style="color:var(--red-400)">${escHtml(r.stderr)}</pre>` : ''
+    const actualLine = r.stdout !== undefined
+      ? `<div style="margin-top:.25rem"><span style="font-size:.6875rem;color:var(--text-500)">Output: </span><code style="font-size:.75rem">${escHtml(r.stdout || '(empty)')}</code></div>`
+      : ''
+    const expectedLine = !r.passed && r.expected_output !== undefined && !r.is_hidden
+      ? `<div><span style="font-size:.6875rem;color:var(--text-500)">Expected: </span><code style="font-size:.75rem">${escHtml(r.expected_output)}</code></div>`
+      : ''
+    return `
+      <div class="tc-run-result ${cls}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
+          <span>${label} — Case ${i+1}</span>
+          <span style="font-size:.75rem;opacity:.8">${pts}</span>
+        </div>
+        ${actualLine}${expectedLine}${stderr}
+      </div>`
+  }).join('')
+}
+
 // ── MCQ option click ──
 window.selectMCQ = (el) => {
   const q = questions[currentIdx]
@@ -568,6 +799,81 @@ document.getElementById('btn-submit-op').addEventListener('click', async () => {
     const passed = (res.test_results||[]).filter(r => r.matched).length
     const total  = res.test_results?.length || 0
     toastSuccess(`Q${currentIdx+1} submitted · ${passed}/${total} correct · ${res.score} pts`)
+    renderQuestion(currentIdx)
+    autoAdvance()
+  } catch (err) { toastError('Submit failed: ' + err.message) }
+  finally { isSubmitting = false; updateButtons() }
+})
+
+// ── Coding language switch ──
+document.getElementById('coding-lang-select').addEventListener('change', () => {
+  const lang = currentCodingLang()
+  if (codingEditor) {
+    monaco.editor.setModelLanguage(codingEditor.getModel(), lang === 'c' ? 'c' : 'python')
+  }
+  const q = questions[currentIdx]
+  if (q && answers[q.id]) answers[q.id].language = lang
+})
+
+// ── Coding: Run button ──
+document.getElementById('btn-run-code').addEventListener('click', async () => {
+  const q = questions[currentIdx]
+  if (!q || isSubmitting) return
+  const code = codingEditor?.getValue() || ''
+  if (!code.trim()) { toastWarning('Please write some code first.'); return }
+  const lang = currentCodingLang()
+  const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
+  if (!visible.length) { toastWarning('No visible test cases to run.'); return }
+
+  const btn = document.getElementById('btn-run-code')
+  btn.disabled = true
+  btn.textContent = 'Running...'
+  try {
+    let res
+    if (lang === 'c') {
+      res = await api.executeC(session.session_token, code, visible)
+    } else {
+      res = await api.executePy(session.session_token, code, visible)
+    }
+    showCodingRunResults(res.results || [], true)
+    const passed = (res.results || []).filter(r => r.passed).length
+    toastSuccess(`Run complete: ${passed}/${visible.length} passed`)
+  } catch (err) {
+    toastError('Run failed: ' + err.message)
+  } finally {
+    btn.disabled = false
+    btn.innerHTML = '&#9654; Run'
+  }
+})
+
+// ── Coding: Submit button ──
+document.getElementById('btn-submit-coding').addEventListener('click', async () => {
+  const q = questions[currentIdx]
+  if (!q || submitted.has(q.id) || isSubmitting) return
+  const code = codingEditor?.getValue() || ''
+  if (!code.trim()) { toastWarning('Please write some code first.'); return }
+  const lang = currentCodingLang()
+
+  isSubmitting = true
+  updateButtons()
+  try {
+    const res = await api.submitAnswer({
+      session_token: session.session_token,
+      question_id:   q.id,
+      answer_type:   'coding',
+      code,
+      language:      lang,
+      is_final:      true,
+    })
+    if (res.error) { toastError(res.error); return }
+    results[q.id] = res
+    submitted.add(q.id)
+    if (!answers[q.id]) answers[q.id] = { type: 'coding', code, language: lang }
+    answers[q.id].code     = code
+    answers[q.id].language = lang
+    const passed = (res.test_results || []).filter(r => r.passed).length
+    const total  = res.test_results?.length || 0
+    toastSuccess(`Q${currentIdx+1} submitted · ${passed}/${total} passed · ${res.score} pts`)
     renderQuestion(currentIdx)
     autoAdvance()
   } catch (err) { toastError('Submit failed: ' + err.message) }
@@ -723,6 +1029,8 @@ async function submitAllUnanswered() {
       } else if (q.question_type === 'output_prediction' && ans.predictions) {
         const preds = Object.entries(ans.predictions).map(([case_id, predicted]) => ({ case_id, predicted }))
         if (preds.length) await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'output_prediction', predictions: preds, is_final: true })
+      } else if (q.question_type === 'coding' && ans.code?.trim()) {
+        await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'coding', code: ans.code, language: ans.language || 'python', is_final: true })
       }
     } catch {}
   }
