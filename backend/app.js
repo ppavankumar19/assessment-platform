@@ -6,10 +6,12 @@ import authRoutes          from './routes/auth.js'
 import adminRoundRoutes    from './routes/admin/rounds.js'
 import adminQuestionRoutes from './routes/admin/questions.js'
 import adminSessionRoutes  from './routes/admin/sessions.js'
+import adminLibraryRoutes  from './routes/admin/library.js'
 import testRoundRoutes     from './routes/test/rounds.js'
 import testRegisterRoutes  from './routes/test/register.js'
 import testQuestionsRoutes from './routes/test/questions.js'
 import testSubmitRoutes    from './routes/test/submit.js'
+import testAnswerRoutes    from './routes/test/answer.js'
 import testExecuteCRoutes  from './routes/test/execute_c.js'
 import testSessionRoutes   from './routes/test/session.js'
 
@@ -57,10 +59,12 @@ export async function buildApp() {
   await app.register(adminRoundRoutes,    { prefix: '/api/admin/rounds' })
   await app.register(adminQuestionRoutes, { prefix: '/api/admin/questions' })
   await app.register(adminSessionRoutes,  { prefix: '/api/admin/sessions' })
+  await app.register(adminLibraryRoutes,  { prefix: '/api/admin/library' })
   await app.register(testRoundRoutes,     { prefix: '/api/test/rounds' })
   await app.register(testRegisterRoutes,  { prefix: '/api/test' })
   await app.register(testQuestionsRoutes, { prefix: '/api/test' })
   await app.register(testSubmitRoutes,    { prefix: '/api/test' })
+  await app.register(testAnswerRoutes,    { prefix: '/api/test' })
   await app.register(testExecuteCRoutes,  { prefix: '/api/test' })
   await app.register(testSessionRoutes,   { prefix: '/api/test/session' })
 
