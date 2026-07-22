@@ -34,19 +34,28 @@ export default async function testQuestionsRoutes(app) {
       .from('questions')
       .select(`
         id, title, description, question_type, points, starter_code,
-        expected_output, order_index,
+        expected_output, order_index, mcq_options,
         test_cases(id, input, expected_output, is_hidden, points, order_index)
       `)
       .eq('round_id', roundId)
+      .eq('is_draft', false)
       .order('order_index', { ascending: true })
 
     if (qErr) return reply.status(500).send({ error: qErr.message })
 
     const qs = questions || []
 
-    // Filter out hidden test cases unless explicitly requested
     const showHidden = include_hidden === 'true'
     qs.forEach(q => {
+      // Don't expose mcq correct answers to candidates
+      if (q.mcq_options && Array.isArray(q.mcq_options)) {
+        q.mcq_options = q.mcq_options.map(opt => ({
+          label: opt.label,
+          text:  opt.text,
+          // is_correct intentionally omitted for candidates
+        }))
+      }
+
       if (!showHidden && q.test_cases) {
         q.test_cases = q.test_cases.filter(tc => !tc.is_hidden)
       }
