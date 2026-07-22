@@ -169,6 +169,8 @@ a.btn-danger,  a.btn-danger:hover  { color: #fff; }
   background: transparent; color: var(--text-300); border-color: var(--border);
 }
 .btn-outline:hover { background: var(--bg-700); border-color: var(--indigo-500); color: var(--text-100); }
+.filter-btn.active { background: var(--indigo-600); border-color: var(--indigo-600); color: #fff; }
+.filter-btn.active:hover { background: var(--indigo-700); border-color: var(--indigo-700); color: #fff; }
 
 .btn-icon {
   padding: .4375rem; background: transparent; border-color: transparent;
@@ -231,6 +233,7 @@ label { display: block; font-size: .8125rem; font-weight: 500; color: var(--text
 .stat-value.red    { color: var(--red-500); }
 .stat-value.indigo { color: var(--indigo-600); }
 .stat-value.amber  { color: var(--amber-400); }
+.stat-value.blue   { color: var(--indigo-500); }
 
 /* ── Badges ── */
 .badge {
