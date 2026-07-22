@@ -22,13 +22,11 @@ async function request(method, path, body, options = {}) {
   })
 
   if (res.status === 401) {
-    // Session expired — redirect to login
     localStorage.removeItem('admin_token')
     window.location.href = '/login.html'
     throw new Error('Unauthorized')
   }
 
-  // For CSV downloads or other non-JSON responses
   const ct = res.headers.get('content-type') || ''
   if (!ct.includes('application/json')) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -50,16 +48,16 @@ export const api = {
   getUser: () => api.get('/api/auth/user'),
 
   // Admin - rounds
-  getRounds:      ()        => api.get('/api/admin/rounds'),
-  createRound:    (body)    => api.post('/api/admin/rounds', body),
-  getRound:       (id)      => api.get(`/api/admin/rounds/${id}`),
-  updateRound:    (id, body)=> api.put(`/api/admin/rounds/${id}`, body),
-  deleteRound:    (id)      => api.delete(`/api/admin/rounds/${id}`),
-  publishRound:   (id)      => api.post(`/api/admin/rounds/${id}/publish`, {}),
-  unpublishRound: (id)      => api.post(`/api/admin/rounds/${id}/unpublish`, {}),
-  pauseRound:     (id)      => api.post(`/api/admin/rounds/${id}/pause`, {}),
-  getRoundSessions:(id)     => api.get(`/api/admin/rounds/${id}/sessions`),
-  exportRound:    (id, fin) => request('GET', `/api/admin/rounds/${id}/export${fin ? '?finalized=true' : ''}`),
+  getRounds:       ()        => api.get('/api/admin/rounds'),
+  createRound:     (body)    => api.post('/api/admin/rounds', body),
+  getRound:        (id)      => api.get(`/api/admin/rounds/${id}`),
+  updateRound:     (id, body)=> api.put(`/api/admin/rounds/${id}`, body),
+  deleteRound:     (id)      => api.delete(`/api/admin/rounds/${id}`),
+  publishRound:    (id)      => api.post(`/api/admin/rounds/${id}/publish`, {}),
+  unpublishRound:  (id)      => api.post(`/api/admin/rounds/${id}/unpublish`, {}),
+  pauseRound:      (id)      => api.post(`/api/admin/rounds/${id}/pause`, {}),
+  getRoundSessions:(id)      => api.get(`/api/admin/rounds/${id}/sessions`),
+  exportRound:     (id, fin) => request('GET', `/api/admin/rounds/${id}/export${fin ? '?finalized=true' : ''}`),
 
   // Admin - questions
   createQuestion: (body)    => api.post('/api/admin/questions', body),
@@ -67,9 +65,16 @@ export const api = {
   deleteQuestion: (id)      => api.delete(`/api/admin/questions/${id}`),
 
   // Admin - sessions
-  getSession:       (id)    => api.get(`/api/admin/sessions/${id}`),
-  deleteSession:    (id)    => api.delete(`/api/admin/sessions/${id}`),
-  disqualifySession:(id)    => api.post(`/api/admin/sessions/${id}/disqualify`, {}),
+  getSession:        (id)   => api.get(`/api/admin/sessions/${id}`),
+  deleteSession:     (id)   => api.delete(`/api/admin/sessions/${id}`),
+  disqualifySession: (id)   => api.post(`/api/admin/sessions/${id}/disqualify`, {}),
+
+  // Admin - library
+  getLibrary:        (type, search) => api.get(`/api/admin/library${type ? `?type=${type}` : ''}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+  createLibraryQ:    (body)  => api.post('/api/admin/library', body),
+  updateLibraryQ:    (id, body) => api.put(`/api/admin/library/${id}`, body),
+  deleteLibraryQ:    (id)   => api.delete(`/api/admin/library/${id}`),
+  importLibraryQ:    (id, round_id, order_index) => api.post(`/api/admin/library/${id}/import`, { round_id, order_index }),
 
   // Test (public - no auth token)
   getPublicRounds: () => fetch('/api/test/rounds').then(r => r.json()),
@@ -86,11 +91,14 @@ export const api = {
   getQuestions: (roundId, token, includeHidden = false) =>
     fetch(`/api/test/${roundId}/questions?token=${encodeURIComponent(token)}${includeHidden ? '&include_hidden=true' : ''}`)
       .then(r => r.json()),
+
+  // Submit MCQ or output prediction answer (server-side scoring)
   submitAnswer: (body) =>
-    fetch('/api/test/submit', {
+    fetch('/api/test/answer', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(r => r.json()),
+
   getSessionStatus: (sessionId, token) =>
     fetch(`/api/test/session/${sessionId}/status?token=${encodeURIComponent(token)}`).then(r => r.json()),
   completeSession: (sessionId, session_token) =>
