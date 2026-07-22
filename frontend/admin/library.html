@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Question Library — Assessment Platform</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .lib-card { transition:border-color .15s,box-shadow .15s; }
+    .lib-card:hover { border-color:var(--border-light); box-shadow:0 4px 16px rgba(0,0,0,.07); }
+    .mcq-option-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
+    .mcq-option-label { min-width:1.5rem; font-weight:700; color:var(--indigo-600); font-size:.875rem; }
+    .mcq-correct-radio { accent-color:var(--green-500); width:1rem; height:1rem; cursor:pointer; }
+    .hidden { display:none !important; }
+    .sep { height:1px; background:var(--border); margin:1rem 0; }
+    .font-mono { font-family:'JetBrains Mono','Fira Code',monospace; }
+    .text-muted { color:var(--text-400); }
+    .text-sm { font-size:.875rem; }
+    .text-xs { font-size:.75rem; }
+    .font-semibold { font-weight:600; }
+    .pts-auto-note { font-size:.75rem; color:var(--text-400); margin-top:.25rem; }
+    .tag-chip { display:inline-flex; align-items:center; gap:.25rem; padding:.125rem .5rem; background:rgba(37,99,235,.07); border:1px solid rgba(37,99,235,.15); border-radius:var(--radius-full); font-size:.6875rem; color:var(--indigo-600); cursor:pointer; }
+    .tag-chip:hover { background:rgba(37,99,235,.14); }
+    .w-full { width:100%; }
+    .section-header { display:flex; align-items:center; justify-content:space-between; }
+    .tc-pts-display { background:var(--bg-750); border:1px solid var(--border); border-radius:var(--radius); padding:.3125rem .625rem; font-size:.8125rem; color:var(--text-400); min-width:4.5rem; text-align:center; }
+    .info-box.warning { background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2); color:var(--amber-500); padding:.75rem 1rem; border-radius:var(--radius); font-size:.875rem; line-height:1.6; margin-bottom:1rem; }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><span class="logo-icon">&#9670;</span> Assessment</div>
+    <nav class="sidebar-nav">
+      <a href="/admin/">&#128202; Dashboard</a>
+      <a href="/admin/library.html" class="active">&#128218; Library</a>
+      <a href="/test/" target="_blank">&#128100; Candidate View</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar">A</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="user-name">Admin</div>
+          <div class="sidebar-user-role">Administrator</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm w-full" id="btn-logout">&#8594; Sign out</button>
+    </div>
+  </aside>
+
+  <main class="admin-content">
+    <div class="content-header">
+      <div class="flex items-center gap-3">
+        <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+        <div>
+          <h2>Question Library</h2>
+          <p class="text-xs text-muted mt-1">Reusable questions you can import into any assessment round</p>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-add-lib">+ Add Question</button>
+    </div>
+
+    <div class="content-body">
+      <!-- Search + Filter -->
+      <div class="flex items-center gap-3 mb-5" style="flex-wrap:wrap">
+        <input type="text" class="input" id="lib-search" placeholder="Search questions..." style="flex:1;min-width:200px;max-width:360px">
+        <div class="flex gap-2">
+          <button class="btn btn-outline btn-sm filter-btn active" data-type="">All</button>
+          <button class="btn btn-outline btn-sm filter-btn" data-type="output_prediction">Output Prediction</button>
+          <button class="btn btn-outline btn-sm filter-btn" data-type="mcq">MCQ</button>
+        </div>
+        <span class="text-sm text-muted" id="lib-count">—</span>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid-3 mb-6">
+        <div class="stat-card">
+          <div class="stat-label">Total Questions</div>
+          <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Output Prediction</div>
+          <div class="stat-value blue" id="stat-op">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">MCQ</div>
+          <div class="stat-value indigo" id="stat-mcq">—</div>
+        </div>
+      </div>
+
+      <!-- Library grid -->
+      <div id="lib-list">
+        <div class="empty-state"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add / Edit Library Question Modal -->
+<div class="modal-backdrop" id="modal-lib-question">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-lib-title">Add Library Question</span>
+      <button class="modal-close" data-close="modal-lib-question">&times;</button>
+    </div>
+    <form id="form-lib-question">
+      <input type="hidden" name="lib_id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Title *</label>
+          <input type="text" class="input" name="title" required placeholder="Question title">
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select class="select" name="question_type" id="lib-q-type">
+            <option value="output_prediction">Output Prediction</option>
+            <option value="mcq">MCQ (Multiple Choice)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea class="textarea" name="description" rows="3" placeholder="Problem statement or question text..."></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Points</label>
+          <input type="number" class="input" name="points" id="lib-points" value="10" min="1">
+          <div class="pts-auto-note" id="lib-pts-note">Test case points auto-distributed equally</div>
+        </div>
+        <div class="form-group">
+          <label>Tags <span style="color:var(--text-400);font-weight:400">(comma-separated)</span></label>
+          <input type="text" class="input" name="tags" placeholder="e.g. loops, arrays, sorting">
+        </div>
+      </div>
+
+      <!-- Output Prediction fields -->
+      <div id="lib-op-fields">
+        <div class="form-group">
+          <label>Code Snippet</label>
+          <textarea class="textarea font-mono" name="starter_code" id="lib-starter-code" rows="6" placeholder="# Code that candidates must predict the output of..."></textarea>
+        </div>
+        <div class="sep"></div>
+        <div class="section-header mb-3">
+          <h4>Test Cases</h4>
+          <button type="button" class="btn btn-outline btn-sm" id="lib-btn-add-tc">+ Add Case</button>
+        </div>
+        <div id="lib-test-cases-editor"></div>
+      </div>
+
+      <!-- MCQ fields -->
+      <div id="lib-mcq-fields" class="hidden">
+        <div class="sep"></div>
+        <h4 class="mb-3">Answer Options <span class="text-xs text-muted">(mark the correct answer)</span></h4>
+        <div id="lib-mcq-options-editor"></div>
+        <div class="info-box warning mt-2">
+          &#9888; Mark exactly one option as correct. Candidates score full points for the correct option.
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close="modal-lib-question">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-save-lib">Save to Library</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal confirm-dialog">
+    <div class="modal-header"><span class="modal-title" id="confirm-title">Confirm</span></div>
+    <p class="confirm-msg" id="confirm-msg"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import api from '/js/api.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, timeAgo } from '/js/utils.js'
+
+const adminToken = localStorage.getItem('admin_token')
+if (!adminToken) { window.location.replace('/login.html'); throw 0 }
+
+const MCQ_LABELS = ['A', 'B', 'C', 'D']
+let allLibItems = []
+let activeType  = ''
+let tcCount     = 0
+
+document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open')
+})
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close))
+})
+document.getElementById('btn-logout').addEventListener('click', () => {
+  localStorage.removeItem('admin_token')
+  window.location.replace('/login.html')
+})
+
+;(async () => {
+  try {
+    const u = await api.getUser()
+    document.getElementById('user-name').textContent = u.full_name || u.email
+    const av = document.getElementById('user-avatar')
+    if (u.avatar_url) av.innerHTML = `<img src="${u.avatar_url}" alt="">`
+    else av.textContent = (u.full_name || u.email || 'A')[0].toUpperCase()
+  } catch { window.location.replace('/login.html') }
+})()
+
+// ── Filter buttons ──
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+    activeType = btn.dataset.type
+    renderLibrary()
+  })
+})
+
+// ── Search ──
+let searchTimer
+document.getElementById('lib-search').addEventListener('input', () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(renderLibrary, 250)
+})
+
+async function loadLibrary() {
+  try {
+    allLibItems = await api.getLibrary()
+    document.getElementById('stat-total').textContent = allLibItems.length
+    document.getElementById('stat-op').textContent  = allLibItems.filter(q => q.question_type === 'output_prediction').length
+    document.getElementById('stat-mcq').textContent = allLibItems.filter(q => q.question_type === 'mcq').length
+    renderLibrary()
+  } catch (e) { toastError('Failed to load library: ' + e.message) }
+}
+
+function renderLibrary() {
+  const search = document.getElementById('lib-search').value.toLowerCase().trim()
+  let items = allLibItems
+  if (activeType) items = items.filter(q => q.question_type === activeType)
+  if (search)     items = items.filter(q => q.title.toLowerCase().includes(search) || (q.description||'').toLowerCase().includes(search) || (q.tags||[]).some(t => t.toLowerCase().includes(search)))
+
+  document.getElementById('lib-count').textContent = `${items.length} question${items.length !== 1 ? 's' : ''}`
+
+  const container = document.getElementById('lib-list')
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">&#128218;</div><p>No questions found. Add your first library question.</p></div>`
+    return
+  }
+
+  container.innerHTML = items.map(q => `
+    <div class="card lib-card mb-3">
+      <div class="flex items-start gap-3">
+        <div style="flex:1;min-width:0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <span class="font-semibold">${escHtml(q.title)}</span>
+            <span class="badge badge-${q.question_type === 'mcq' ? 'indigo' : 'blue'}">${q.question_type === 'mcq' ? 'MCQ' : 'Output Prediction'}</span>
+            <span class="badge badge-gray">${q.points} pts</span>
+          </div>
+          ${q.description ? `<p class="text-sm" style="color:var(--text-400);line-height:1.5;margin-bottom:.375rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(q.description)}</p>` : ''}
+          <div class="flex items-center gap-2 flex-wrap">
+            ${(q.tags||[]).map(t => `<span class="tag-chip">&#127991; ${escHtml(t)}</span>`).join('')}
+            <span class="text-xs text-muted">Added ${timeAgo(q.created_at)}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2" style="flex-shrink:0">
+          <button class="btn btn-outline btn-sm" onclick="editLibQ('${q.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red-400)" onclick="deleteLibQ('${q.id}','${escHtml(q.title)}')">Delete</button>
+        </div>
+      </div>
+    </div>`).join('')
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+// ── Type switcher in modal ──
+document.getElementById('lib-q-type').addEventListener('change', function() {
+  const isMCQ = this.value === 'mcq'
+  document.getElementById('lib-op-fields').classList.toggle('hidden', isMCQ)
+  document.getElementById('lib-mcq-fields').classList.toggle('hidden', !isMCQ)
+  document.getElementById('lib-pts-note').textContent = isMCQ
+    ? 'Full points awarded for correct MCQ answer'
+    : 'Test case points auto-distributed equally'
+})
+
+// ── MCQ options ──
+function renderMCQEditor(existing = []) {
+  const correctLabel = existing.find(o => o.is_correct)?.label || 'A'
+  document.getElementById('lib-mcq-options-editor').innerHTML = MCQ_LABELS.map((lbl, i) => {
+    const opt = existing.find(o => o.label === lbl) || { label: lbl, text: '', is_correct: false }
+    return `
+      <div class="mcq-option-row">
+        <input type="radio" name="mcq_correct" value="${lbl}" class="mcq-correct-radio" ${opt.is_correct ? 'checked' : ''}>
+        <span class="mcq-option-label">${lbl}</span>
+        <input type="text" class="input input-sm" name="mcq_opt_${lbl}" value="${escHtml(opt.text)}" placeholder="Option ${lbl} text" style="flex:1">
+      </div>`
+  }).join('')
+}
+
+function collectMCQOptions(form) {
+  const correct = form.mcq_correct?.value || 'A'
+  return MCQ_LABELS.map(lbl => ({
+    label: lbl, text: form[`mcq_opt_${lbl}`]?.value?.trim() || '',
+    is_correct: lbl === correct,
+  }))
+}
+
+// ── Test cases ──
+document.getElementById('lib-points').addEventListener('input', libRedistributePoints)
+
+function libRedistributePoints() {
+  const total = Number(document.getElementById('lib-points').value) || 0
+  const rows = document.getElementById('lib-test-cases-editor').querySelectorAll('[data-idx]')
+  const n = rows.length
+  if (n === 0) return
+  const perCase   = Math.floor(total / n)
+  const remainder = total - perCase * (n - 1)
+  rows.forEach((row, i) => {
+    const pts = i === n - 1 ? remainder : perCase
+    const disp = row.querySelector('.tc-pts-display')
+    const inp  = row.querySelector('[name^="tc_points_"]')
+    if (disp) disp.textContent = `${pts} pts`
+    if (inp)  inp.value = pts
+  })
+}
+
+document.getElementById('lib-btn-add-tc').addEventListener('click', () => {
+  addLibTC(null)
+  libRedistributePoints()
+})
+
+function addLibTC(tc = null) {
+  const idx = tcCount++
+  const total = Number(document.getElementById('lib-points').value) || 0
+  const existingN = document.getElementById('lib-test-cases-editor').querySelectorAll('[data-idx]').length
+  const pts = existingN > 0 ? Math.floor(total / (existingN + 1)) : total
+  const row = document.createElement('div')
+  row.className = 'test-case-card'
+  row.dataset.idx = idx
+  row.innerHTML = `
+    <div class="test-case-header">
+      <span class="text-xs font-semibold text-muted">Case ${idx+1}</span>
+      <div class="flex items-center gap-2">
+        <label class="toggle-wrap text-xs text-muted">
+          <span class="toggle${tc?.is_hidden ? ' on' : ''}" data-toggle-hidden></span>
+          <span>Hidden</span>
+        </label>
+        <input type="hidden" name="tc_hidden_${idx}" value="${tc?.is_hidden ? 'true' : 'false'}">
+        <span class="tc-pts-display">${tc?.points ?? pts} pts</span>
+        <input type="hidden" name="tc_points_${idx}" value="${tc?.points ?? pts}">
+        <button type="button" class="btn btn-icon danger" onclick="this.closest('[data-idx]').remove();libRedistributePoints()" style="font-size:1rem">&times;</button>
+      </div>
+    </div>
+    <div class="test-case-io">
+      <div>
+        <div class="io-label">Input</div>
+        <textarea class="textarea input-sm font-mono" name="tc_input_${idx}" rows="2" placeholder="(empty)">${escHtml(tc?.input||'')}</textarea>
+      </div>
+      <div>
+        <div class="io-label">Expected Output</div>
+        <textarea class="textarea input-sm font-mono" name="tc_expected_${idx}" rows="2" placeholder="expected output">${escHtml(tc?.expected_output||'')}</textarea>
+      </div>
+    </div>
+  `
+  const toggle = row.querySelector('[data-toggle-hidden]')
+  const hiddenInput = row.querySelector(`[name="tc_hidden_${idx}"]`)
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('on')
+    hiddenInput.value = toggle.classList.contains('on') ? 'true' : 'false'
+  })
+  document.getElementById('lib-test-cases-editor').appendChild(row)
+}
+
+function collectLibTCs(form) {
+  return [...document.getElementById('lib-test-cases-editor').querySelectorAll('[data-idx]')].map((row, i) => {
+    const idx = row.dataset.idx
+    return {
+      input:           form[`tc_input_${idx}`]?.value || '',
+      expected_output: form[`tc_expected_${idx}`]?.value || '',
+      is_hidden:       form[`tc_hidden_${idx}`]?.value === 'true',
+      points:          Number(form[`tc_points_${idx}`]?.value || 0),
+      order_index:     i + 1,
+    }
+  })
+}
+
+// ── Open add modal ──
+document.getElementById('btn-add-lib').addEventListener('click', () => {
+  const form = document.getElementById('form-lib-question')
+  form.reset()
+  form.lib_id.value = ''
+  form.points.value = '10'
+  document.getElementById('lib-starter-code').value = ''
+  document.getElementById('lib-op-fields').classList.remove('hidden')
+  document.getElementById('lib-mcq-fields').classList.add('hidden')
+  document.getElementById('lib-pts-note').textContent = 'Test case points auto-distributed equally'
+  document.getElementById('modal-lib-title').textContent = 'Add Library Question'
+  document.getElementById('btn-save-lib').textContent = 'Save to Library'
+  tcCount = 0
+  document.getElementById('lib-test-cases-editor').innerHTML = ''
+  renderMCQEditor([])
+  openModal('modal-lib-question')
+})
+
+// ── Open edit modal ──
+window.editLibQ = (id) => {
+  const q = allLibItems.find(x => x.id === id)
+  if (!q) return
+  const form = document.getElementById('form-lib-question')
+  form.reset()
+  form.lib_id.value = q.id
+  form.title.value = q.title
+  form.description.value = q.description || ''
+  form.question_type.value = q.question_type
+  form.points.value = q.points
+  form.tags.value = (q.tags||[]).join(', ')
+  document.getElementById('lib-starter-code').value = q.starter_code || ''
+
+  const isMCQ = q.question_type === 'mcq'
+  document.getElementById('lib-op-fields').classList.toggle('hidden', isMCQ)
+  document.getElementById('lib-mcq-fields').classList.toggle('hidden', !isMCQ)
+  document.getElementById('lib-pts-note').textContent = isMCQ
+    ? 'Full points awarded for correct MCQ answer'
+    : 'Test case points auto-distributed equally'
+
+  document.getElementById('modal-lib-title').textContent = 'Edit Library Question'
+  document.getElementById('btn-save-lib').textContent = 'Save Changes'
+  tcCount = 0
+  document.getElementById('lib-test-cases-editor').innerHTML = ''
+  renderMCQEditor(q.mcq_options || [])
+  openModal('modal-lib-question')
+}
+
+// ── Delete ──
+window.deleteLibQ = (id, title) => {
+  confirm(`Delete library question "${title}"?`, async () => {
+    try {
+      await api.deleteLibraryQ(id)
+      toastSuccess('Deleted from library')
+      await loadLibrary()
+    } catch (e) { toastError(e.message) }
+  }, 'Delete Question')
+}
+
+// ── Save form ──
+document.getElementById('form-lib-question').addEventListener('submit', async e => {
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  const libId = fd.get('lib_id')
+  const form = e.target
+  const isMCQ = fd.get('question_type') === 'mcq'
+
+  const tagsRaw = fd.get('tags') || ''
+  const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean)
+
+  const body = {
+    title:         fd.get('title'),
+    description:   fd.get('description') || null,
+    question_type: fd.get('question_type'),
+    points:        Number(fd.get('points')),
+    tags,
+    starter_code:  isMCQ ? null : (fd.get('starter_code') || null),
+    mcq_options:   isMCQ ? collectMCQOptions(form) : null,
+  }
+
+  const btn = document.getElementById('btn-save-lib')
+  btn.disabled = true
+  try {
+    if (libId) await api.updateLibraryQ(libId, body)
+    else       await api.createLibraryQ(body)
+    closeModal('modal-lib-question')
+    toastSuccess(libId ? 'Question updated' : 'Question added to library')
+    await loadLibrary()
+  } catch (err) { toastError(err.message) }
+  finally { btn.disabled = false; btn.textContent = libId ? 'Save Changes' : 'Save to Library' }
+})
+
+// Make redistributePoints accessible for remove button
+window.libRedistributePoints = libRedistributePoints
+
+await loadLibrary()
+</script>
+</body>
+</html>
