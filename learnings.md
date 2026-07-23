@@ -248,3 +248,77 @@ JavaScript originally only ran inside browsers. Node.js took Chrome's V8 engine 
 ```
 Browser (Vanilla JS)  →  Node.js + Fastify (API Server)  →  Supabase (PostgreSQL)
 ```
+
+---
+
+## Production Hardening — What Was Done
+
+### Security Headers (`@fastify/helmet`)
+- Content Security Policy: allows inline scripts (vanilla JS), CDN assets (Monaco, Pyodide), Supabase connections
+- `crossOriginEmbedderPolicy: false` — required for Pyodide SharedArrayBuffer
+
+### Compression (`@fastify/compress`)
+- gzip/brotli compression on all responses — reduces bandwidth significantly
+
+### Body Limits
+- Global: 128 KB (`bodyLimit: 131_072` in Fastify config)
+- Per-route override: 512 KB for `/api/test/answer` (typing replay payload)
+
+### Admin Auth Token Cache
+- In-memory Map with 5-minute TTL, max 500 entries, FIFO eviction
+- Eliminates 2 Supabase DB round-trips per admin API request
+
+### Graceful Shutdown
+- SIGTERM/SIGINT handlers call `app.close()` so Render can drain cleanly
+
+### Code Execution Sandbox
+- `SAFE_ENV` — no secrets leaked to subprocesses
+- `ulimit -v 262144 -t 5` — 256 MB RAM, 5s CPU limit
+- UUID temp files in `/tmp`, cleaned up after execution
+- Wall timeout: 6s, output cap: 100 KB
+
+### Session Race Fix
+- `.eq('status', 'started')` guard on complete update prevents `completed` overwriting `disqualified`
+
+---
+
+## Bugs Fixed in Audit
+
+| Bug | Root Cause | Fix |
+|---|---|---|
+| Python execution failed in Docker | Dockerfile only installed gcc, not python3 | Added python3 to apt-get |
+| HTML entities shown raw (`&#10003;`) | Used `textContent` on HTML strings | Changed to `innerHTML` |
+| Fullscreen lost on navigation | `requestFullscreen()` before `location.replace()` | Moved to gate overlay on exam page |
+| Same code shown for C and Python | Shared code buffer | Per-language buffers: `ans.python`, `ans.c` |
+| Playback always showed "Python 3" | Hardcoded in HTML | Dynamic badge from `language_id` |
+| Playback had no data | Never captured snapshots or saved speed_metrics | Added snapshot tracking + DB save in answer.js |
+| execute_c.js had no sandbox | No SAFE_ENV, no ulimit | Refactored to use executor.js |
+| Auto-submit used wrong code buffer | `ans.code` instead of per-language buffer | Fixed to use `ans[lang]` |
+| compile_error not shown to candidate | Not included in submit response | Added `compileError` to response |
+| confirm() stacked event handlers | addEventListener without cleanup | Clone node to remove all listeners |
+| `branch`/`department` not validated | Missing length checks | Added 50/100 char limits |
+| Any string accepted as event_type | No whitelist | Whitelist of 8 allowed event types |
+| anonKey not checked at startup | Only url+serviceKey validated | Added check + throw |
+| Bearer prefix not verified in auth | `authHeader.slice(7)` without check | Added `startsWith('Bearer ')` guard |
+| language field not saved for questions | Missing from INSERT/UPDATE | Added language to both |
+| test_cases insert error ignored silently | No error handling | Propagate error → 400 response |
+| department missing from admin session queries | Not in SELECT | Added to both admin session endpoints |
+
+---
+
+## Key Architecture Patterns
+
+### Event Whitelist (Security)
+Only these event types can be logged via `/api/test/session/:id/event`:
+- `tab_switch`, `fullscreen_exit`, `window_blur`, `tab_close` (auto-disqualify)
+- `paste`, `copy`, `right_click`, `key_shortcut` (monitoring only)
+
+### Per-Language Editor Buffers
+Coding answers stored as `{ type: 'coding', python: '...', c: '...', language: 'python' }`.
+Language switch saves to previous buffer, restores from new buffer.
+
+### Typing Replay Storage
+Structure: `{ startTime, snapshots: [{t, code, trigger, pastedContent?}] }`
+- Max 30 snapshots: keeps first (initial) + most recent 29
+- Triggers: initial, periodic (10s), paste, run, submit
+- Stored in `speed_metrics.keystroke_sample` (JSONB)
