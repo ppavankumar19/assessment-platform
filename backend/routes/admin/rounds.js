@@ -143,7 +143,7 @@ export default async function adminRoundRoutes(app) {
     const { data, error } = await db
       .from('candidate_sessions')
       .select(`
-        id, candidate_name, candidate_email, college_name, roll_no, branch,
+        id, candidate_name, candidate_email, college_name, roll_no, branch, department,
         status, score, created_at, started_at, completed_at,
         submissions(id, question_id, score, status, is_final)
       `)
