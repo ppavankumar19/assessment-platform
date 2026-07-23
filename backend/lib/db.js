@@ -7,6 +7,9 @@ const anonKey = process.env.SUPABASE_ANON_KEY
 if (!url || !serviceKey) {
   throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
 }
+if (!anonKey) {
+  throw new Error('SUPABASE_ANON_KEY is required')
+}
 
 // Service-role client — bypasses RLS. Use only for server-side operations.
 export const db = createClient(url, serviceKey, {
