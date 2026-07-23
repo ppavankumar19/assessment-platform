@@ -54,6 +54,7 @@ export default async function testSessionRoutes(app) {
         score: totalScore,
       })
       .eq('id', sessionId)
+      .eq('status', 'started') // guard: don't overwrite disqualified status set by admin
       .select()
       .single()
 
