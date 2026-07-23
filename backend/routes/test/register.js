@@ -9,7 +9,7 @@ export default async function testRegisterRoutes(app) {
     config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
   }, async (request, reply) => {
     const { roundId } = request.params
-    const { candidate_name, candidate_email, college_name, roll_no, branch } = request.body
+    const { candidate_name, candidate_email, college_name, roll_no, branch, department } = request.body
 
     if (!candidate_name || !candidate_email) {
       return reply.status(400).send({ error: 'candidate_name and candidate_email are required' })
@@ -71,6 +71,7 @@ export default async function testRegisterRoutes(app) {
         college_name: college_name?.trim() || null,
         roll_no: roll_no?.trim() || null,
         branch: branch?.trim() || null,
+        department: department?.trim() || null,
         status: 'registered',
       })
       .select()

@@ -166,7 +166,7 @@ export default async function adminRoundRoutes(app) {
 
     const { data: sessions, error } = await db
       .from('candidate_sessions')
-      .select('candidate_name, candidate_email, college_name, roll_no, branch, status, score, completed_at')
+      .select('candidate_name, candidate_email, college_name, roll_no, branch, department, status, score, completed_at')
       .eq('round_id', request.params.id)
       .order('score', { ascending: false })
 
@@ -183,6 +183,7 @@ export default async function adminRoundRoutes(app) {
       College:     s.college_name || '',
       RollNo:      s.roll_no || '',
       Branch:      s.branch || '',
+      Department:  s.department || '',
       Status:      s.status,
       Score:       s.score ?? 0,
       CompletedAt: s.completed_at || '',

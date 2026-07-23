@@ -129,8 +129,40 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Branch / Department</label>
-          <input type="text" class="input" name="branch" placeholder="e.g. Computer Science Engineering">
+          <label>Branch</label>
+          <select class="input" name="branch" style="cursor:pointer">
+            <option value="">— Select branch —</option>
+            <option>CSE</option>
+            <option>ECE</option>
+            <option>EEE</option>
+            <option>ME</option>
+            <option>CE</option>
+            <option>IT</option>
+            <option>Chemical Engineering</option>
+            <option>Aerospace Engineering</option>
+            <option>Biotechnology</option>
+            <option>MCA</option>
+            <option>MBA</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Department</label>
+          <select class="input" name="department" style="cursor:pointer">
+            <option value="">— Select department —</option>
+            <option>Computer Science &amp; Engineering</option>
+            <option>Electronics &amp; Communication Engineering</option>
+            <option>Electrical &amp; Electronics Engineering</option>
+            <option>Mechanical Engineering</option>
+            <option>Civil Engineering</option>
+            <option>Information Technology</option>
+            <option>Chemical Engineering</option>
+            <option>Aerospace Engineering</option>
+            <option>Biotechnology</option>
+            <option>Management Studies</option>
+            <option>Computer Applications</option>
+            <option>Other</option>
+          </select>
         </div>
 
         <div class="info-box warning mt-4" style="display:flex;align-items:flex-start;gap:.75rem;">
@@ -237,6 +269,7 @@ document.getElementById('form-register').addEventListener('submit', async e => {
       college_name:    fd.get('college_name') || null,
       roll_no:         fd.get('roll_no') || null,
       branch:          fd.get('branch') || null,
+      department:      fd.get('department') || null,
     })
 
     if (reg.error) { toastError(reg.error); btn.disabled = false; btn.textContent = 'Enter Exam →'; return }
@@ -257,8 +290,6 @@ document.getElementById('form-register').addEventListener('submit', async e => {
       candidate_name:   fd.get('candidate_name'),
     })
 
-    // Request fullscreen before navigation — browser allows it since it's a user gesture
-    try { await document.documentElement.requestFullscreen() } catch {}
     window.location.replace(`/test/exam.html?round=${roundId}`)
   } catch (err) {
     toastError(err.message)
