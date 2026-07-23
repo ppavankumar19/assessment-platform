@@ -29,6 +29,12 @@ export default async function testRegisterRoutes(app) {
     if (roll_no && roll_no.length > 30) {
       return reply.status(400).send({ error: 'roll_no must be 30 characters or fewer' })
     }
+    if (branch && branch.length > 50) {
+      return reply.status(400).send({ error: 'branch must be 50 characters or fewer' })
+    }
+    if (department && department.length > 100) {
+      return reply.status(400).send({ error: 'department must be 100 characters or fewer' })
+    }
 
     // Verify round is published
     const { data: round, error: rErr } = await db
