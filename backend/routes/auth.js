@@ -4,7 +4,7 @@ export default async function authRoutes(app) {
   // GET /api/auth/user — return current admin profile
   app.get('/user', async (request, reply) => {
     const authHeader = request.headers.authorization
-    if (!authHeader) return reply.status(401).send({ error: 'No token' })
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return reply.status(401).send({ error: 'No token' })
 
     const token = authHeader.slice(7)
     const client = makeUserClient(token)
