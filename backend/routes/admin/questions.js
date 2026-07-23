@@ -7,11 +7,14 @@ export default async function adminQuestionRoutes(app) {
     const {
       round_id, title, description, question_type,
       points, starter_code, expected_output, order_index,
-      test_cases, mcq_options, is_draft,
+      test_cases, mcq_options, is_draft, language,
     } = request.body
 
     if (!round_id || !title) {
       return reply.status(400).send({ error: 'round_id and title are required' })
+    }
+    if (test_cases && test_cases.length > 20) {
+      return reply.status(400).send({ error: 'Maximum 20 test cases per question' })
     }
 
     const { data: question, error } = await db
@@ -21,6 +24,7 @@ export default async function adminQuestionRoutes(app) {
         question_type: question_type || 'output_prediction',
         points: points ?? 10,
         starter_code, expected_output,
+        language: language || null,
         order_index: order_index || 0,
         mcq_options: mcq_options || null,
         is_draft: is_draft || false,
@@ -40,15 +44,17 @@ export default async function adminQuestionRoutes(app) {
         points:          tc.points || 0,
         order_index:     tc.order_index ?? i,
       }))
-      await db.from('test_cases').insert(tcRows)
+      const { error: tcErr } = await db.from('test_cases').insert(tcRows)
+      if (tcErr) return reply.status(400).send({ error: tcErr.message })
     }
 
-    const { data: full } = await db
+    const { data: full, error: fullErr } = await db
       .from('questions')
       .select('*, test_cases(*)')
       .eq('id', question.id)
       .single()
 
+    if (fullErr) return reply.status(500).send({ error: fullErr.message })
     return reply.status(201).send(full)
   })
 
@@ -58,14 +64,19 @@ export default async function adminQuestionRoutes(app) {
     const {
       title, description, question_type, points,
       starter_code, expected_output, order_index,
-      test_cases, mcq_options, is_draft,
+      test_cases, mcq_options, is_draft, language,
     } = request.body
+
+    if (test_cases !== undefined && test_cases.length > 20) {
+      return reply.status(400).send({ error: 'Maximum 20 test cases per question' })
+    }
 
     const { data: question, error } = await db
       .from('questions')
       .update({
         title, description, question_type, points, starter_code,
         expected_output, order_index,
+        language: language !== undefined ? (language || null) : undefined,
         mcq_options: mcq_options !== undefined ? (mcq_options || null) : undefined,
         is_draft: is_draft !== undefined ? is_draft : undefined,
       })
@@ -87,16 +98,18 @@ export default async function adminQuestionRoutes(app) {
           points:          tc.points || 0,
           order_index:     tc.order_index ?? i,
         }))
-        await db.from('test_cases').insert(tcRows)
+        const { error: tcErr } = await db.from('test_cases').insert(tcRows)
+        if (tcErr) return reply.status(400).send({ error: tcErr.message })
       }
     }
 
-    const { data: full } = await db
+    const { data: full, error: fullErr } = await db
       .from('questions')
       .select('*, test_cases(*)')
       .eq('id', id)
       .single()
 
+    if (fullErr) return reply.status(500).send({ error: fullErr.message })
     return reply.send(full)
   })
 
