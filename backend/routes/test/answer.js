@@ -73,6 +73,7 @@ export default async function testAnswerRoutes(app) {
     let finalScore = 0
     let finalStatus = 'wrong_answer'
     let testResults = null
+    let compileError = null
 
     if (answer_type === 'mcq' || question.question_type === 'mcq') {
       // ── MCQ scoring ──────────────────────────────────────────────
@@ -93,6 +94,7 @@ export default async function testAnswerRoutes(app) {
       if (execErr) {
         return reply.status(503).send({ error: execErr })
       }
+      compileError = compile_error || null
       testResults = execResults
       finalScore  = testResults.reduce((s, r) => s + (r.score || 0), 0)
       const passed = testResults.filter(r => r.passed).length
@@ -191,6 +193,7 @@ export default async function testAnswerRoutes(app) {
       score:         finalScore,
       status:        finalStatus,
       test_results:  safeResults,
+      compile_error: compileError || undefined,
     })
   })
 }
