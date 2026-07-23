@@ -63,12 +63,24 @@ export default async function testSessionRoutes(app) {
   })
 
   // POST /api/test/session/:sessionId/event — log a security/audit event
+  const ALLOWED_EVENTS = new Set([
+    'tab_switch', 'fullscreen_exit', 'window_blur', 'tab_close',
+    'paste', 'copy', 'right_click', 'key_shortcut',
+  ])
+
   app.post('/:sessionId/event', async (request, reply) => {
     const { sessionId } = request.params
     const { session_token, event_type, event_data } = request.body
 
     if (!session_token || !event_type) {
       return reply.status(400).send({ error: 'session_token and event_type are required' })
+    }
+    if (!ALLOWED_EVENTS.has(event_type)) {
+      return reply.status(400).send({ error: 'Invalid event_type' })
+    }
+    const rawEventData = JSON.stringify(event_data || {})
+    if (rawEventData.length > 1024) {
+      return reply.status(400).send({ error: 'event_data too large' })
     }
 
     // Verify session
