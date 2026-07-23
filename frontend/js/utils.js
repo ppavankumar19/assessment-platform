@@ -115,20 +115,18 @@ export function confirm(message, onConfirm, title = 'Are you sure?') {
   document.getElementById('confirm-title').textContent = title
   document.getElementById('confirm-msg').textContent = message
 
-  const confirmBtn = document.getElementById('confirm-ok')
-  const cancelBtn  = document.getElementById('confirm-cancel')
+  // Clone to remove all previously stacked listeners before adding new one
+  const oldBtn = document.getElementById('confirm-ok')
+  const confirmBtn = oldBtn.cloneNode(true)
+  oldBtn.parentNode.replaceChild(confirmBtn, oldBtn)
 
-  const handler = () => {
+  const cancelBtn = document.getElementById('confirm-cancel')
+
+  confirmBtn.addEventListener('click', () => {
     backdrop.classList.remove('open')
-    confirmBtn.removeEventListener('click', handler)
     onConfirm()
-  }
-
-  confirmBtn.addEventListener('click', handler)
-  cancelBtn.onclick = () => {
-    backdrop.classList.remove('open')
-    confirmBtn.removeEventListener('click', handler)
-  }
+  })
+  cancelBtn.onclick = () => { backdrop.classList.remove('open') }
 
   backdrop.classList.add('open')
 }
@@ -184,9 +182,9 @@ export function roundTypeBadge(type) {
     output_prediction: ['blue',  'Output Prediction'],
     mcq:               ['indigo','MCQ'],
     coding:            ['amber', 'Coding'],
-    // legacy (keep for display of old data)
+    c_programming:     ['amber', 'C Programming'],
+    // legacy
     live_coding:       ['gray',  'Live Coding'],
-    c_programming:     ['gray',  'C Programming'],
   }
   const [color, label] = map[type] || ['gray', type]
   return `<span class="badge badge-${color}">${label}</span>`
