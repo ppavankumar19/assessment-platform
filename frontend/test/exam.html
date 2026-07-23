@@ -966,6 +966,7 @@ document.getElementById('btn-submit-coding').addEventListener('click', async () 
       typing_replay,
     })
     if (res.error) { toastError(res.error); return }
+    if (res.compile_error) toastError('Compilation error — check your code')
     results[q.id] = res
     submitted.add(q.id)
     if (!answers[q.id]) answers[q.id] = { type: 'coding', code, language: lang }
@@ -973,7 +974,7 @@ document.getElementById('btn-submit-coding').addEventListener('click', async () 
     answers[q.id].language = lang
     const passed = (res.test_results || []).filter(r => r.passed).length
     const total  = res.test_results?.length || 0
-    toastSuccess(`Q${currentIdx+1} submitted · ${passed}/${total} passed · ${res.score} pts`)
+    if (!res.compile_error) toastSuccess(`Q${currentIdx+1} submitted · ${passed}/${total} passed · ${res.score} pts`)
     renderQuestion(currentIdx)
     autoAdvance()
   } catch (err) { toastError('Submit failed: ' + err.message) }
@@ -1129,8 +1130,19 @@ async function submitAllUnanswered() {
       } else if (q.question_type === 'output_prediction' && ans.predictions) {
         const preds = Object.entries(ans.predictions).map(([case_id, predicted]) => ({ case_id, predicted }))
         if (preds.length) await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'output_prediction', predictions: preds, is_final: true })
-      } else if (q.question_type === 'coding' && ans.code?.trim()) {
-        await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'coding', code: ans.code, language: ans.language || 'python', is_final: true })
+      } else if (q.question_type === 'coding') {
+        const lang = ans.language || 'python'
+        const code = (ans[lang] || ans.code || '').trim()
+        if (code) {
+          const sm = (snapTracking?.qId === q.id) ? {
+            total_keystrokes: snapTracking.keystrokes, paste_count: snapTracking.pastes,
+            delete_count: snapTracking.deletes, time_to_first_key_ms: snapTracking.firstKeyMs,
+            total_active_time_ms: Date.now() - snapTracking.startTime, idle_periods: [],
+          } : null
+          const tr = (snapTracking?.qId === q.id)
+            ? { startTime: snapTracking.startTime, snapshots: snapTracking.snapshots } : null
+          await api.submitAnswer({ session_token: session.session_token, question_id: q.id, answer_type: 'coding', code, language: lang, is_final: true, speed_metrics: sm, typing_replay: tr })
+        }
       }
     } catch {}
   }
