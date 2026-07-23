@@ -50,7 +50,7 @@
       <p class="mt-2 mb-6" id="done-msg" style="color:var(--text-300);line-height:1.6">Your responses have been recorded successfully.</p>
       <div id="done-status"></div>
       <p style="margin-top:1.5rem;font-size:.8125rem;color:var(--text-500);line-height:1.5">
-        Results will be communicated by the assessment organiser. You may close this window.
+        Results will be communicated by the assessment organiser.
       </p>
     </div>
   </div>
@@ -100,8 +100,8 @@ setTimeout(() => {
         document.getElementById('card-disq').classList.remove('hidden')
       } else {
         document.getElementById('card-done').classList.remove('hidden')
-        document.getElementById('done-title').textContent = `Well done, ${session.candidate_name || 'Candidate'}!`
-        document.getElementById('done-msg').textContent   = 'Your assessment has been submitted successfully.'
+        document.getElementById('done-title').textContent = 'Exam is Finished!'
+        document.getElementById('done-msg').textContent   = `Well done, ${session.candidate_name || 'Candidate'}! Your assessment has been submitted successfully. You may close this tab.`
         document.getElementById('done-status').innerHTML  = `
           <div style="display:inline-flex;align-items:center;gap:.625rem;background:var(--bg-750);border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:.625rem 1rem;">
             <span style="font-size:.75rem;color:var(--text-400);text-transform:uppercase;letter-spacing:.07em;font-weight:600;">Round</span>

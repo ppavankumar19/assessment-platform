@@ -153,6 +153,15 @@
   </style>
 </head>
 <body>
+
+<!-- Fullscreen gate — must be dismissed via user gesture before exam is accessible -->
+<div id="fullscreen-gate" style="position:fixed;inset:0;background:var(--bg-950);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1.25rem;text-align:center;padding:2rem;">
+  <div style="font-size:3rem">&#128274;</div>
+  <h2 style="color:var(--text-50);font-size:1.5rem;font-weight:700">Fullscreen required</h2>
+  <p style="color:var(--text-400);font-size:.9375rem;max-width:380px;line-height:1.6">This exam must run in fullscreen mode. Exiting fullscreen at any time will be recorded as a violation.</p>
+  <button id="btn-enter-fullscreen" class="btn btn-primary" style="padding:.75rem 2.5rem;font-size:1rem;margin-top:.25rem">&#x26F6; Enter Fullscreen &amp; Begin</button>
+</div>
+
 <div class="exam-layout">
 
   <!-- Top bar -->
@@ -321,17 +330,29 @@ let isSubmitting  = false
 let monacoEditor  = null   // read-only editor for output prediction
 let codingEditor  = null   // writable editor for coding
 let monacoReady   = false
+let snapTracking  = null   // typing snapshot tracker (coding round only)
 
 const roundType = session.round_type || 'output_prediction'
 
-// ── Auto fullscreen ──
-;(async () => {
+// ── Fullscreen gate ──
+const fsGate = document.getElementById('fullscreen-gate')
+if (document.fullscreenElement) {
+  fsGate.style.display = 'none'
+}
+document.getElementById('btn-enter-fullscreen').addEventListener('click', async () => {
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen()
-    }
-  } catch {}
-})()
+    await document.documentElement.requestFullscreen()
+    fsGate.style.display = 'none'
+  } catch {
+    // Fullscreen denied — let them continue but note it
+    fsGate.innerHTML = `
+      <div style="font-size:2rem">&#9888;</div>
+      <h2 style="color:var(--amber-500);font-size:1.25rem">Fullscreen unavailable</h2>
+      <p style="color:var(--text-400);max-width:340px;line-height:1.6;font-size:.9375rem">Your browser denied fullscreen. Your activity is still monitored. Click to continue.</p>
+      <button class="btn btn-warning" id="btn-skip-fs" style="padding:.625rem 2rem;margin-top:.5rem">Continue Anyway</button>`
+    document.getElementById('btn-skip-fs').addEventListener('click', () => { fsGate.style.display = 'none' })
+  }
+})
 
 // ── Monaco initialization ──
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } })
@@ -379,13 +400,32 @@ if (roundType === 'output_prediction') {
       fontFamily:          "'JetBrains Mono', 'Fira Code', monospace",
       fontLigatures:       true,
     })
-    // Save code on change
-    codingEditor.onDidChangeModelContent(() => {
+    // Save code on change (per-language buffer) + track keystrokes
+    codingEditor.onDidChangeModelContent((e) => {
       const q = questions[currentIdx]
       if (!q) return
-      if (!answers[q.id]) answers[q.id] = { type: 'coding', code: '', language: currentCodingLang() }
-      answers[q.id].code = codingEditor.getValue()
+      const lang = currentCodingLang()
+      if (!answers[q.id]) answers[q.id] = { type: 'coding', python: '', c: '', language: lang }
+      answers[q.id][lang] = codingEditor.getValue()
+      // Keystroke tracking for admin playback
+      if (snapTracking?.qId === q.id) {
+        e.changes.forEach(ch => {
+          if (ch.text) snapTracking.keystrokes += ch.text.length
+          if (ch.rangeLength > 0) snapTracking.deletes += ch.rangeLength
+        })
+        if (snapTracking.firstKeyMs === null && snapTracking.keystrokes > 0) {
+          snapTracking.firstKeyMs = Date.now() - snapTracking.startTime
+        }
+      }
     })
+
+    // Detect paste (Ctrl+V) for monitoring
+    document.getElementById('coding-editor-container').addEventListener('keydown', (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'v' && snapTracking) {
+        snapTracking.pastes++
+        setTimeout(() => captureSnap('paste'), 80)
+      }
+    }, true)
     monacoReady = true
     if (questions.length) renderQuestion(currentIdx)
   })
@@ -399,6 +439,34 @@ if (roundType === 'output_prediction') {
 
 function currentCodingLang() {
   return document.getElementById('coding-lang-select')?.value || 'python'
+}
+
+// ── Typing snapshot tracking (coding round only) ──────────────────────────
+function startSnapTracking(qId) {
+  if (snapTracking?.timer) clearInterval(snapTracking.timer)
+  snapTracking = {
+    qId,
+    startTime:  Date.now(),
+    snapshots:  [],
+    keystrokes: 0,
+    pastes:     0,
+    deletes:    0,
+    firstKeyMs: null,
+    timer:      setInterval(() => captureSnap('periodic'), 10_000),
+  }
+  captureSnap('initial')
+}
+
+function captureSnap(trigger, extra = {}) {
+  if (!snapTracking) return
+  // Limit to 30 snapshots: keep first (initial) + most recent 29
+  if (snapTracking.snapshots.length >= 30) {
+    const first = snapTracking.snapshots[0]
+    snapTracking.snapshots = [first, ...snapTracking.snapshots.slice(-28)]
+  }
+  const entry = { t: Date.now() - snapTracking.startTime, code: codingEditor?.getValue() || '', trigger }
+  if (extra.pastedContent) entry.pastedContent = extra.pastedContent
+  snapTracking.snapshots.push(entry)
 }
 
 // ── Load questions ──
@@ -436,7 +504,7 @@ function renderQuestion(idx) {
   document.getElementById('q-progress-bar').style.width = `${((idx+1)/questions.length)*100}%`
 
   const isLocked = submitted.has(q.id)
-  document.getElementById('answer-status').textContent = isLocked ? '&#128274; Locked' : ''
+  document.getElementById('answer-status').innerHTML = isLocked ? '&#128274; Locked' : ''
 
   if (q.question_type === 'mcq') {
     renderMCQQuestion(q, isLocked)
@@ -628,14 +696,20 @@ function renderCodingQuestion(q, isLocked) {
   const savedLang = saved?.language || (qLang !== 'any' ? qLang : 'python')
   langSelect.value = savedLang
 
-  // Update Monaco language
+  // Update Monaco language + per-language code buffer
   if (codingEditor) {
     const monacoLang = savedLang === 'c' ? 'c' : 'python'
     monaco.editor.setModelLanguage(codingEditor.getModel(), monacoLang)
-    const savedCode = saved?.code ?? (q.starter_code || '')
+    const defaultCode = savedLang === 'c'
+      ? '#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}\n'
+      : '# Write your solution here\n'
+    const savedCode = saved?.[savedLang] ?? (q.starter_code || defaultCode)
     codingEditor.setValue(savedCode)
     codingEditor.setScrollPosition({ scrollTop: 0 })
   }
+
+  // Start typing snapshot tracking for new (unlocked) questions
+  if (!isLocked) startSnapTracking(q.id)
 
   // Locked overlay
   document.getElementById('coding-locked')?.classList.toggle('hidden', !isLocked)
@@ -807,12 +881,24 @@ document.getElementById('btn-submit-op').addEventListener('click', async () => {
 
 // ── Coding language switch ──
 document.getElementById('coding-lang-select').addEventListener('change', () => {
-  const lang = currentCodingLang()
-  if (codingEditor) {
-    monaco.editor.setModelLanguage(codingEditor.getModel(), lang === 'c' ? 'c' : 'python')
-  }
+  const newLang = currentCodingLang()
   const q = questions[currentIdx]
-  if (q && answers[q.id]) answers[q.id].language = lang
+  if (!q) return
+  if (!answers[q.id]) answers[q.id] = { type: 'coding', python: '', c: '', language: newLang }
+  const prevLang = answers[q.id].language || 'python'
+  // Save current editor content to previous language buffer
+  answers[q.id][prevLang] = codingEditor?.getValue() || ''
+  answers[q.id].language = newLang
+  if (codingEditor) {
+    monaco.editor.setModelLanguage(codingEditor.getModel(), newLang === 'c' ? 'c' : 'python')
+    const defaultCode = newLang === 'c'
+      ? '#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}\n'
+      : '# Write your solution here\n'
+    codingEditor.setValue(answers[q.id][newLang] || defaultCode)
+    codingEditor.setScrollPosition({ scrollTop: 0 })
+  }
+  // Clear run results when switching language
+  document.getElementById('coding-results-wrap').style.display = 'none'
 })
 
 // ── Coding: Run button ──
@@ -825,6 +911,7 @@ document.getElementById('btn-run-code').addEventListener('click', async () => {
   const visible = q.test_cases?.filter(tc => !tc.is_hidden) || []
   if (!visible.length) { toastWarning('No visible test cases to run.'); return }
 
+  captureSnap('run')
   const btn = document.getElementById('btn-run-code')
   btn.disabled = true
   btn.textContent = 'Running...'
@@ -854,6 +941,17 @@ document.getElementById('btn-submit-coding').addEventListener('click', async () 
   if (!code.trim()) { toastWarning('Please write some code first.'); return }
   const lang = currentCodingLang()
 
+  captureSnap('submit')
+  const typing_replay  = snapTracking ? { startTime: snapTracking.startTime, snapshots: snapTracking.snapshots } : null
+  const speed_metrics  = snapTracking ? {
+    total_keystrokes:     snapTracking.keystrokes,
+    paste_count:          snapTracking.pastes,
+    delete_count:         snapTracking.deletes,
+    time_to_first_key_ms: snapTracking.firstKeyMs,
+    total_active_time_ms: Date.now() - snapTracking.startTime,
+    idle_periods:         [],
+  } : null
+
   isSubmitting = true
   updateButtons()
   try {
@@ -864,6 +962,8 @@ document.getElementById('btn-submit-coding').addEventListener('click', async () 
       code,
       language:      lang,
       is_final:      true,
+      speed_metrics,
+      typing_replay,
     })
     if (res.error) { toastError(res.error); return }
     results[q.id] = res
@@ -910,7 +1010,7 @@ function updateButtons() {
 
   const finishBtn = document.getElementById('btn-finish')
   finishBtn.classList.toggle('hidden', questions.length === 0)
-  finishBtn.textContent = unsubCount > 0
+  finishBtn.innerHTML = unsubCount > 0
     ? `Finish Assessment (${unsubCount} unanswered)`
     : '&#10003; Finish Assessment'
 

@@ -1,9 +1,11 @@
 import { db } from '../../lib/db.js'
 import { executeAndScore } from '../../lib/executor.js'
+import { computeDerivedMetrics } from '../../lib/scoring.js'
 
 export default async function testAnswerRoutes(app) {
   // POST /api/test/answer — submit MCQ, Output Prediction, or Coding answer
-  app.post('/answer', async (request, reply) => {
+  // Higher body limit to accommodate typing_replay snapshots for coding submissions
+  app.post('/answer', { bodyLimit: 524_288 /* 512 KB */ }, async (request, reply) => {
     const {
       session_token,
       question_id,
@@ -13,6 +15,8 @@ export default async function testAnswerRoutes(app) {
       code,              // for coding: the submitted code
       language,          // for coding: 'python' | 'c'
       is_final,
+      speed_metrics,     // for coding: keystroke/paste/delete counts
+      typing_replay,     // for coding: {startTime, snapshots:[{t,code,trigger}]}
     } = request.body
 
     if (!session_token || !question_id) {
@@ -137,7 +141,7 @@ export default async function testAnswerRoutes(app) {
         question_id,
         user_id:      session.user_id || null,
         code:         codeStored,
-        language_id:  null,
+        language_id:  answer_type === 'coding' ? (language === 'c' ? 50 : 71) : null,
         status:       finalStatus,
         is_final:     is_final || false,
         score:        finalScore,
@@ -148,6 +152,25 @@ export default async function testAnswerRoutes(app) {
 
     if (subErr || !submission) {
       return reply.status(400).send({ error: subErr?.message || 'Failed to save answer' })
+    }
+
+    // Save typing replay + speed metrics for coding questions (powers the admin playback page)
+    if (answer_type === 'coding' && (speed_metrics || typing_replay)) {
+      const derived = speed_metrics ? computeDerivedMetrics(speed_metrics) : { chars_per_minute: 0, wpm_equivalent: 0 }
+      await db.from('speed_metrics').insert({
+        submission_id:        submission.id,
+        session_id:           session.id,
+        question_id,
+        total_keystrokes:     speed_metrics?.total_keystrokes || 0,
+        paste_count:          speed_metrics?.paste_count || 0,
+        delete_count:         speed_metrics?.delete_count || 0,
+        time_to_first_key_ms: speed_metrics?.time_to_first_key_ms ?? null,
+        total_active_time_ms: speed_metrics?.total_active_time_ms || 0,
+        idle_periods:         speed_metrics?.idle_periods || [],
+        chars_per_minute:     derived.chars_per_minute,
+        wpm_equivalent:       derived.wpm_equivalent,
+        keystroke_sample:     typing_replay || null,
+      }).catch(err => { /* non-fatal — don't fail the submission */ })
     }
 
     // Safe response — strip hidden expected outputs and correct MCQ answer

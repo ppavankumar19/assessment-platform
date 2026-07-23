@@ -126,7 +126,7 @@
 
       <!-- Editor toolbar -->
       <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg-850,#0a1628);flex-shrink:0;">
-        <span class="editor-lang-badge">Python 3</span>
+        <span class="editor-lang-badge" id="pb-lang-badge">Code</span>
         <span style="color:var(--border);font-size:.875rem;">&#124;</span>
         <span class="text-xs text-muted">Read-only replay</span>
         <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;">
@@ -247,6 +247,20 @@ document.getElementById('pb-question-select').addEventListener('change', e => {
 function loadSubmission(subId) {
   const sub = session.submissions?.find(s => s.id === subId)
   if (!sub) return
+
+  // Update language badge
+  const langBadge = document.getElementById('pb-lang-badge')
+  if (langBadge) {
+    langBadge.textContent = sub.language_id === 50 ? 'C (gcc)'
+                          : sub.language_id === 71 ? 'Python 3'
+                          : 'Code'
+  }
+
+  // Update Monaco language for syntax highlighting
+  if (editor) {
+    const lang = sub.language_id === 50 ? 'c' : 'python'
+    monaco.editor.setModelLanguage(editor.getModel(), lang)
+  }
 
   const replay = sub.speed_metrics?.[0]?.keystroke_sample
   const metrics = sub.speed_metrics?.[0]
