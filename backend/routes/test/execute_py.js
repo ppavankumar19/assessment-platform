@@ -3,11 +3,17 @@ import { checkPython, executeAndScore } from '../../lib/executor.js'
 
 export default async function testExecutePyRoutes(app) {
   // POST /api/test/execute-py — run Python code against visible test cases
-  app.post('/execute-py', async (request, reply) => {
+  app.post('/execute-py', {
+    config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const { session_token, code, test_cases } = request.body
 
     if (!session_token || !code) {
       return reply.status(400).send({ error: 'session_token and code are required' })
+    }
+
+    if (code.length > 65_536) {
+      return reply.status(400).send({ error: 'Code exceeds maximum size (64 KB)' })
     }
 
     if (!(await checkPython())) {
@@ -21,7 +27,6 @@ export default async function testExecutePyRoutes(app) {
       })
     }
 
-    // Verify active session
     const { data: session, error: sErr } = await db
       .from('candidate_sessions')
       .select('id, status')

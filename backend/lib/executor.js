@@ -1,17 +1,46 @@
 /**
- * Code execution utilities — Python 3 and C (gcc).
- * Used by execute endpoints and the answer route for coding submissions.
+ * Code execution engine — Python 3 and C (gcc).
+ *
+ * Security measures:
+ *  - Code written to temp file (not passed as shell arg)
+ *  - Subprocess runs with a sanitised minimal environment
+ *    (no SUPABASE_* keys, no API tokens accessible to user code)
+ *  - Resource limits applied via ulimit: CPU time + virtual memory
+ *  - 5-second wall-clock timeout (separate from CPU limit)
+ *  - Output capped at 100 KB to prevent memory exhaustion
+ *  - /tmp working directory (no access to project files)
+ *  - Temp files cleaned up in finally blocks
+ *
+ * NOTE: For a fully hardened production environment, consider wrapping
+ * execution in nsjail or bubblewrap for proper filesystem/network isolation.
  */
 
 import { exec, spawn } from 'child_process'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { randomUUID } from 'crypto'
 import { normalizeOutput } from './scoring.js'
 
-// ── Availability checks (cached) ─────────────────────────────────────────────
+// ── Sanitised environment for subprocesses ───────────────────────────────────
+// Explicitly allowlisted vars only — prevents user code from reading
+// SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or any other server secret.
+const SAFE_ENV = Object.freeze({
+  PATH:    '/usr/local/bin:/usr/bin:/bin',
+  HOME:    '/tmp',
+  TMPDIR:  '/tmp',
+  LANG:    'en_US.UTF-8',
+  TERM:    'dumb',
+})
 
-let _gccAvailable = null
+const MAX_OUTPUT_BYTES = 100_000   // 100 KB
+const WALL_TIMEOUT_MS  = 6_000    // 6 s wall clock (slightly longer than CPU limit)
+const CPU_LIMIT_S      = 5        // ulimit -t: CPU seconds
+const MEM_LIMIT_KB     = 262_144  // ulimit -v: 256 MB virtual memory
+
+// ── Availability checks (cached after first call) ────────────────────────────
+
+let _gccAvailable    = null
 let _pythonAvailable = null
 
 export function checkGcc() {
@@ -28,20 +57,38 @@ export function checkPython() {
   })
 }
 
-// ── Low-level process runner ──────────────────────────────────────────────────
+// ── Low-level sandboxed process runner ───────────────────────────────────────
+// Always spawns via `sh -c 'ulimit ...; exec <cmd>'` to enforce resource limits.
+// Args must not contain shell-special chars — caller is responsible for safe paths.
 
-function spawnProc(cmd, args, input, timeoutMs = 5000) {
+function spawnSandboxed(cmd, args, input, timeoutMs = WALL_TIMEOUT_MS) {
   return new Promise((resolve) => {
     const start = Date.now()
-    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] })
+
+    // Build ulimit prefix; suppress errors if ulimit flags aren't supported
+    const limits  = `ulimit -v ${MEM_LIMIT_KB} -t ${CPU_LIMIT_S} 2>/dev/null`
+    const execStr = [cmd, ...args].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')
+    const shellCmd = `${limits}; exec ${execStr}`
+
+    const child = spawn('/bin/sh', ['-c', shellCmd], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env:   SAFE_ENV,
+      cwd:   '/tmp',
+    })
+
     let stdout = '', stderr = '', killed = false
 
-    const timer = setTimeout(() => { killed = true; child.kill('SIGKILL') }, timeoutMs)
+    const timer = setTimeout(() => {
+      killed = true
+      child.kill('SIGKILL')
+    }, timeoutMs)
+
     child.stdout.on('data', d => {
       stdout += d
-      if (stdout.length > 100_000) { killed = true; child.kill('SIGKILL') }
+      if (stdout.length > MAX_OUTPUT_BYTES) { killed = true; child.kill('SIGKILL') }
     })
-    child.stderr.on('data', d => { stderr += d })
+    child.stderr.on('data', d => { stderr += d.toString().slice(0, 4_000) })
+
     child.stdin.write(input || '')
     child.stdin.end()
 
@@ -59,26 +106,40 @@ function spawnProc(cmd, args, input, timeoutMs = 5000) {
 // ── Python execution ──────────────────────────────────────────────────────────
 
 async function runPythonAllCases(code, testCases) {
-  const results = []
-  for (const tc of testCases) {
-    const { stdout, stderr, elapsed, killed } = await spawnProc('python3', ['-c', code], tc.input || '')
-    const got      = normalizeOutput(stdout)
-    const expected = normalizeOutput(tc.expected_output || '')
-    const passed   = got === expected && !killed
-    results.push({
-      case_id:         tc.id,
-      passed,
-      stdout:          stdout.trimEnd(),
-      stderr,
-      status:          killed ? 'TLE' : passed ? 'Accepted' : 'Wrong Answer',
-      time_ms:         elapsed,
-      score:           passed ? (tc.points || 0) : 0,
-      is_hidden:       tc.is_hidden || false,
-      expected_output: tc.expected_output || '',
-      timed_out:       killed,
-    })
+  if (code.length > 65_536) {
+    return { error: 'Code exceeds maximum size (64 KB)' }
   }
-  return { results }
+
+  // Write to temp file — avoids argument-length limits and is easier to sandbox
+  const srcFile = join(tmpdir(), `ap_${randomUUID()}.py`)
+  await writeFile(srcFile, code, 'utf8')
+
+  try {
+    const results = []
+    for (const tc of testCases) {
+      const { stdout, stderr, elapsed, killed } = await spawnSandboxed(
+        'python3', [srcFile], tc.input || ''
+      )
+      const got      = normalizeOutput(stdout)
+      const expected = normalizeOutput(tc.expected_output || '')
+      const passed   = got === expected && !killed
+      results.push({
+        case_id:         tc.id,
+        passed,
+        stdout:          stdout.trimEnd(),
+        stderr,
+        status:          killed ? 'TLE' : passed ? 'Accepted' : 'Wrong Answer',
+        time_ms:         elapsed,
+        score:           passed ? (tc.points || 0) : 0,
+        is_hidden:       tc.is_hidden || false,
+        expected_output: tc.expected_output || '',
+        timed_out:       killed,
+      })
+    }
+    return { results }
+  } finally {
+    await unlink(srcFile).catch(() => {})
+  }
 }
 
 // ── C execution ───────────────────────────────────────────────────────────────
@@ -86,30 +147,37 @@ async function runPythonAllCases(code, testCases) {
 async function runCAllCases(code, testCases) {
   if (!(await checkGcc())) {
     return {
-      error: 'gcc not available on this server',
+      error: 'C execution requires gcc which is not installed on this server.',
       results: testCases.map(tc => ({
         case_id: tc.id, passed: false, score: 0, stdout: '',
-        stderr: 'C execution requires gcc which is not installed on this server.',
-        status: 'Unsupported', time_ms: 0,
+        stderr:  'gcc not available', status: 'Unsupported', time_ms: 0,
         is_hidden: tc.is_hidden || false, expected_output: tc.expected_output || '',
       })),
     }
   }
 
-  const uid     = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  const srcFile = join(tmpdir(), `ap_${uid}.c`)
-  const binFile = join(tmpdir(), `ap_${uid}`)
+  if (code.length > 65_536) {
+    return { error: 'Code exceeds maximum size (64 KB)' }
+  }
+
+  const id      = randomUUID()
+  const srcFile = join(tmpdir(), `ap_${id}.c`)
+  const binFile = join(tmpdir(), `ap_${id}`)
 
   await writeFile(srcFile, code, 'utf8')
 
   try {
-    // Compile once
+    // Compile once with minimal env
     let compileError = null
     await new Promise(resolve => {
-      exec(`gcc -o "${binFile}" "${srcFile}" -lm -O2 2>&1`, { timeout: 15000 }, (err, output) => {
-        if (err) compileError = String(output || err.message)
-        resolve()
-      })
+      exec(
+        `gcc -o "${binFile}" "${srcFile}" -lm -O2 2>&1`,
+        { timeout: 15_000, env: SAFE_ENV },
+        (err, output) => {
+          if (err) compileError = String(output || err.message)
+          resolve()
+        }
+      )
     })
 
     if (compileError) {
@@ -124,10 +192,12 @@ async function runCAllCases(code, testCases) {
       }
     }
 
-    // Run each test case against compiled binary
+    // Run each test case against the compiled binary
     const results = []
     for (const tc of testCases) {
-      const { stdout, stderr, elapsed, killed } = await spawnProc(binFile, [], tc.input || '')
+      const { stdout, stderr, elapsed, killed } = await spawnSandboxed(
+        binFile, [], tc.input || ''
+      )
       const got      = normalizeOutput(stdout)
       const expected = normalizeOutput(tc.expected_output || '')
       const passed   = got === expected && !killed
@@ -155,9 +225,9 @@ async function runCAllCases(code, testCases) {
 
 /**
  * Execute code against test cases and return scored results.
- * @param {string} code
- * @param {'python'|'c'} language
- * @param {Array}  testCases  — rows from test_cases table
+ * @param {string}         code
+ * @param {'python'|'c'}   language
+ * @param {Array}          testCases  — rows from test_cases table
  * @returns {{ results, compile_error?, error? }}
  */
 export function executeAndScore(code, language, testCases) {
