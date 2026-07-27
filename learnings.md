@@ -322,3 +322,86 @@ Structure: `{ startTime, snapshots: [{t, code, trigger, pastedContent?}] }`
 - Max 30 snapshots: keeps first (initial) + most recent 29
 - Triggers: initial, periodic (10s), paste, run, submit
 - Stored in `speed_metrics.keystroke_sample` (JSONB)
+
+---
+
+## Conscious System Design — Principles Applied
+
+The following are the 6 conscious-system-design principles and how they apply to this project:
+
+### 1. End User Experience
+Every API response and UI state has been designed with load/empty/error in mind:
+- Loading states: Python status indicator, toast notifications, spinner overlays
+- Error states: global error handler strips 500 stack traces; user sees "unexpected error" message
+- Empty states: admin dashboard shows zero-state cards when no rounds exist
+
+### 2. Meaningful Names
+Domain vocabulary used throughout:
+- `candidate_sessions` (not `users_exam`), `audit_logs` (not `events`), `is_final` (not `done`)
+- API routes mirror user flow: `/api/test/:roundId/register` → `/api/test/:roundId/start` → `/api/test/submit`
+- DB column names describe the field's meaning: `candidate_name`, `time_to_first_key_ms`
+
+### 3. Tracing
+- Pino structured logging with automatic `reqId` on every request (Fastify default)
+- `/api/health` endpoint for uptime monitors to probe
+- `audit_logs` table: every anti-cheat event + admin action recorded with `session_id` and `created_at`
+- Next gap: external error aggregation (Sentry) to see 500 errors without log searching
+
+### 4. Multiple Solutions Considered
+| Decision | Options Considered | Choice Made | Why |
+|----------|-------------------|-------------|-----|
+| Code execution | Judge0 SaaS, server-side gcc/python3, Pyodide WASM | Pyodide + server-side | Zero cost, no third-party dependency, sandboxed |
+| Frontend | React, Vue, Vanilla JS | Vanilla JS | No build step, simpler deployment, faster first load |
+| Auth | Roll-your-own JWT, Auth0, Supabase Auth | Supabase Auth | Managed, OAuth + magic link out-of-box, no JWT signing key management |
+| Deployment | Vercel serverless, VPS, Docker/Render | Docker/Render | gcc available in container, predictable process model |
+
+### 5. Correctness
+Edge cases explicitly handled:
+- **Race condition**: `.eq('status', 'started')` guard prevents `completed` overwriting `disqualified`
+- **Duplicate submission**: 409 returned if `is_final=true` submission already exists
+- **Session expiry**: server recomputes `expires_at` from `started_at + duration_minutes` on every submit
+- **Event injection**: only whitelisted event types accepted by audit log route
+- **Body size limits**: global 128 KB; `/api/test/answer` gets 512 KB for typing replay payloads
+
+### 6. No Duplicate Code
+- `normalizeOutput` and `computeDerivedMetrics` centralized in `lib/scoring.js`
+- Auth logic centralized in `middleware/auth.js` with in-memory cache
+- All API fetch methods centralized in `frontend/js/api.js`
+- Toast, modal, confirm, badge helpers centralized in `frontend/js/utils.js`
+
+---
+
+## Testing Patterns — Node.js Built-in Test Runner
+
+Node.js 22 includes `node:test` — no extra dependencies needed.
+
+```js
+import { test, describe } from 'node:test'
+import assert from 'node:assert/strict'
+import { normalizeOutput } from '../lib/scoring.js'
+
+describe('normalizeOutput', () => {
+  test('returns empty string for null', () => {
+    assert.equal(normalizeOutput(null), '')
+  })
+
+  test('normalizes CRLF to LF', () => {
+    assert.equal(normalizeOutput('a\r\nb'), 'a\nb')
+  })
+})
+```
+
+Run with: `node --test test/*.test.js`
+
+### Testing Fastify Routes (inject)
+Fastify's built-in `app.inject()` lets you test routes without starting a real server:
+
+```js
+import { buildApp } from '../app.js'
+
+const app = await buildApp()
+const res = await app.inject({ method: 'GET', url: '/api/health' })
+assert.equal(res.statusCode, 200)
+```
+
+No real HTTP port needed — great for unit/integration tests of route logic.
