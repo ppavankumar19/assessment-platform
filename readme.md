@@ -35,7 +35,7 @@ The Assessment Platform provides a controlled, observable environment for multi-
 
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
-| **Backend** | Node.js 20 + Fastify 4 (ES modules) | Fast, low-overhead HTTP server; stateless; horizontally scalable |
+| **Backend** | Node.js 22 + Fastify 4 (ES modules) | Fast, low-overhead HTTP server; stateless; horizontally scalable |
 | **Frontend** | Vanilla HTML + CSS + JavaScript | No framework, no build step, served as static files from CDN or Nginx |
 | **Database** | Supabase PostgreSQL 15 | Managed Postgres, Row Level Security, Auth integration |
 | **Auth** | Supabase Auth | Google OAuth + Magic Link; JWT validated by backend middleware |
@@ -208,7 +208,7 @@ Also update `frontend/login.html` — replace the two `__PLACEHOLDER__` strings 
 
 | Tool | Version |
 |------|---------|
-| Node.js | 20 LTS |
+| Node.js | 22 LTS |
 | A Supabase project | Any plan |
 
 ### Step-by-step
@@ -230,9 +230,13 @@ cp .env.example .env
 #   http://localhost:4000/login.html
 
 # 5. Run database migrations
-# Supabase Dashboard → SQL Editor → run:
-#   supabase/migrations/00001_initial_schema.sql
-#   supabase/migrations/00002_add_session_fields.sql
+# Supabase Dashboard → SQL Editor → run in order:
+#   supabase/migrations/00003_reset_correct_schema.sql
+#   supabase/migrations/00004_mcq_library_draft.sql
+#   supabase/migrations/00005_cascade_delete_fixes.sql
+#   supabase/migrations/00006_coding_round.sql
+#   supabase/migrations/00007_performance_indexes.sql
+#   supabase/migrations/00008_add_department.sql
 
 # 6. Start the server
 npm run dev   # auto-restart on changes

@@ -22,19 +22,17 @@
 
 | Component | Technology | Responsibility |
 |-----------|-----------|----------------|
-| **API Server** | Node.js 20 + Fastify 4 | REST API + static file serving |
+| **API Server** | Node.js 22 + Fastify 4 | REST API + static file serving |
 | **Frontend** | Vanilla HTML + CSS + JS | Admin panel, candidate portal (no framework) |
 | **Auth Service** | Supabase Auth | Google OAuth + Magic Link; JWT issuance |
 | **Database** | Supabase PostgreSQL 15 | All application state; Row Level Security |
 | **Code Executor** | Pyodide (browser WASM) | Python 3 execution in the browser; Web Worker |
-| **Deployment** | Vercel (serverless + CDN) | `api/index.js` wraps Fastify; `frontend/` served as static |
+| **Deployment** | Docker → Render.com | `Dockerfile` builds image; Fastify serves `frontend/` as static files |
 
 ### 1.2 Directory Structure
 
 ```
 assessment-platform/
-├── api/
-│   └── index.js                  # Vercel serverless entry point (wraps Fastify)
 ├── backend/
 │   ├── server.js                 # Fastify app — registers all plugins and routes
 │   ├── lib/
@@ -47,12 +45,16 @@ assessment-platform/
 │   │   ├── admin/
 │   │   │   ├── rounds.js         # Full CRUD + publish/pause/export
 │   │   │   ├── questions.js      # CRUD with test_cases replace
-│   │   │   └── sessions.js       # GET / DELETE / disqualify
+│   │   │   ├── sessions.js       # GET / DELETE / disqualify
+│   │   │   └── library.js        # Library CRUD + import to round
 │   │   └── test/
 │   │       ├── rounds.js         # GET /api/test/rounds (public)
 │   │       ├── register.js       # POST register + POST start
 │   │       ├── questions.js      # GET questions (token-gated)
-│   │       ├── submit.js         # POST submit (score from Pyodide results)
+│   │       ├── submit.js         # POST submit (score from Pyodide/C results)
+│   │       ├── answer.js         # POST answer (MCQ + output prediction scoring)
+│   │       ├── execute_py.js     # POST execute Python (server-side sandbox)
+│   │       ├── execute_c.js      # POST execute C (gcc sandbox)
 │   │       └── session.js        # complete / event / status
 │   ├── package.json
 │   └── .env.example

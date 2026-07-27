@@ -64,10 +64,9 @@
 - CORS restricted to configured origin
 
 #### Infrastructure
-- Node.js + Fastify API deployed as a Vercel serverless function (`api/index.js`)
-- Static frontend served from Vercel CDN (`frontend/` directory)
+- Node.js + Fastify API in a Docker container deployed on Render.com
+- Frontend served as static files from the same Fastify server
 - Supabase Cloud (auth + database)
-- Production URL: `https://assessment-platform-drab.vercel.app`
 
 ---
 
@@ -77,7 +76,7 @@
 |------|-------------------------------|
 | **Video proctoring** | Privacy complexity, infra cost; V2 |
 | **AI plagiarism detection** | Requires ML pipeline; V2 |
-| **Multi-language code execution** | Currently Python 3 only via Pyodide; adding more requires server-side sandbox or additional WASM runtimes |
+| **Multi-language code execution beyond C/Python** | C (server-side gcc) and Python (Pyodide WASM) are supported; additional languages (Java, Go, Rust) are V2 |
 | **Mobile-responsive candidate portal** | Fullscreen API is unreliable on mobile; desktop-only for assessments |
 | **Third-party ATS integration** | Post-GA |
 | **Dynamic question randomization** | Fixed question sets per round for V1 |
@@ -253,6 +252,6 @@ Success criteria:
 | **Code execution** | Pyodide (browser WASM); Python 3 only; no server-side sandbox |
 | **Browser requirement** | Chrome 110+, Firefox 115+, Edge 110+; fullscreen API required |
 | **Network** | Candidates require internet for Pyodide CDN load (~10 MB first visit); Vercel CDN serves static assets globally |
-| **Deployment model** | Vercel (serverless); `vercel --prod` to deploy |
+| **Deployment model** | Docker → Render.com; `git push` triggers auto-deploy via Render |
 | **Assessment scale** | Serverless auto-scales; Supabase connection pool is the primary constraint |
 | **Admin count** | Small number of admins (< 20); single admin role, no permission tiers |
