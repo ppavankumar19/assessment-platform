@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node --env-file=.env server.js",
     "dev": "node --env-file=.env --watch server.js",
+    "test": "node --test test/*.test.js",
     "db:migrate": "node --env-file=.env ../scripts/migrate.mjs"
   },
   "dependencies": {
