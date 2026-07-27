@@ -8,7 +8,7 @@
 - Admin: cutoff score per round, CSV export (all / finalized)
 - Admin: session management — delete, disqualify candidates
 - Admin: typing replay / playback page for malpractice detection
-- Candidate registration with email, college, roll no, branch
+- Candidate registration with email, college, roll no, branch, department
 - Exam page: Monaco editor, Python 3 execution via Pyodide (browser WebAssembly)
 - Exam page: per-question submit with test-case preview modal before locking
 - Exam page: submitted questions locked — cannot be revisited
@@ -16,41 +16,61 @@
 - Security: fullscreen enforcement, tab-switch detection, auto-disqualification
 - Security: copy/paste logging, right-click/F12 blocked, incognito recommended
 - Security: admin audit log for publish/unpublish/pause/disqualify/delete actions
-- Deployment: Vercel (frontend + serverless API), Supabase PostgreSQL
+- Deployment: Docker → Render.com (backend serves frontend as static files)
+
+---
+
+## Shipped (Phase 2)
+
+### MCQ Question Type
+
+**Status:** Fully shipped.
+
+- Round type `mcq` supported in round creation form
+- Admin question editor: MCQ options (4 choices + correct answer flag, stored as JSONB)
+- Exam page: radio-button selection for MCQ rounds
+- Server-side scoring via `/api/test/answer` — correct option never exposed to candidate
+- Score computed from `mcq_options.correct` flag without revealing which option is correct
+
+### Output Prediction Question Type
+
+**Status:** Fully shipped.
+
+- Round type `output_prediction` supported
+- Admin question editor: starter code + visible test cases for candidates to predict output
+- Exam page: text input per visible test case (no code editor)
+- Server-side scoring: normalized string match of candidate input vs `expected_output`
+- Hidden test cases scored without revealing expected values
+
+### C Language / Coding Round
+
+**Status:** Fully shipped on Docker/Render deployment.
+
+**What's built:**
+- `POST /api/test/execute-c` — compiles and runs C code server-side via `gcc`
+- `POST /api/test/execute-py` — runs Python code server-side (alternative to Pyodide)
+- Compile timeout: 15 seconds; per-test-case run timeout: 5 seconds; output cap: 100 KB
+- Returns per-test-case results (pass/fail, stdout, stderr, time_ms, score)
+- Admin question form: C language selector and C starter code template
+- Exam page: language switcher (Python 3 / C) per question
+- Language auto-detected from starter code (presence of `#include`)
+- Sandbox: `SAFE_ENV` (no secrets leaked), `ulimit -v 262144 -t 5` (256 MB RAM, 5s CPU)
+
+**Deployment note:** Requires Docker environment with `gcc` and `python3` installed.
+The `Dockerfile` includes both. Render.com (Docker runtime) fully supports this.
+
+### Question Library
+
+**Status:** Fully shipped.
+
+- `GET/POST/PUT/DELETE /api/admin/library` — full CRUD for reusable question bank
+- Library questions: title, description, type, points, starter code, MCQ options, tags
+- `POST /api/admin/library/:id/import` — import library question into any round in one click
+- Admin UI: `/admin/library.html` — searchable, filterable library portal
 
 ---
 
 ## Planned / Future
-
-### C Language Support (Self-Hosted Only)
-
-**Status:** Backend implemented, blocked on deployment environment.
-
-**What's built:**
-- `POST /api/test/execute-c` endpoint compiles and runs C code server-side using `gcc`
-- Compile timeout: 15 seconds; per-test-case run timeout: 5 seconds; output cap: 100 KB
-- Returns per-test-case results (pass/fail, stdout, stderr, time_ms, score)
-- Admin question form already has C language selector and C starter code template
-- Exam page already has language switcher (Python 3 / C) per question
-- Language auto-detected from starter code (presence of `#include`)
-
-**Why it's disabled on Vercel:**
-Vercel serverless functions do not have `gcc` installed. The endpoint returns HTTP 501
-with a clear error. The exam page shows an inline warning instead of a crash.
-
-**To enable C support:**
-1. Deploy the backend (`backend/`) on a self-hosted server or VPS (DigitalOcean, Railway, Render, etc.) that has `gcc` installed
-2. Set `FRONTEND_URL` to the Vercel frontend URL in the backend env
-3. Update the Vercel `BACKEND_URL` rewrite (or proxy) to point to the self-hosted backend
-4. C code will then compile and execute automatically — no code changes needed
-
-**Alternative (cloud C execution):**
-Integrate [Judge0](https://judge0.com) (supports 60+ languages including C, C++, Java) via their public API or self-hosted instance. Would require:
-- A `JUDGE0_API_URL` + `JUDGE0_API_KEY` env var
-- A new `/api/test/execute-judge0` route that submits code and polls for results
-- Updating the exam page to call the Judge0 route for non-Python languages
-
----
 
 ### Additional Languages via Judge0
 
@@ -61,23 +81,25 @@ Once Judge0 is integrated, the following languages can be added with minimal eff
 - Go
 - Rust
 
----
-
-### MCQ Question Type
-
-**Status:** Round type `mcq` exists in schema and round creation form, but no MCQ question editor or exam UI is built yet.
-
 **To implement:**
-- Add MCQ option to question form (question text + 4 options + correct answer)
-- Exam page MCQ view: radio buttons instead of code editor
-- Auto-score on submission (no code execution needed)
+- A `JUDGE0_API_URL` + `JUDGE0_API_KEY` env var
+- A new `/api/test/execute-judge0` route
+- Update exam page to call Judge0 route for additional languages
 
 ---
 
-### Output Prediction Question Type
+### Video Proctoring
 
-**Status:** `output_prediction` round type and question type exist. Partial exam UI may exist.
+**Status:** Out of scope for V1. Privacy complexity + infrastructure cost.
 
-**To implement / verify:**
-- Ensure exam page shows a text input instead of editor for output prediction questions
-- Score based on exact string match of candidate's predicted output vs expected output
+---
+
+### Bulk Candidate Import via CSV
+
+**Status:** Candidates currently self-register. CSV import is a V2 feature.
+
+---
+
+### Multi-Tenant / SaaS Billing
+
+**Status:** Single-org deployment for V1. Multi-tenancy is post-GA.
