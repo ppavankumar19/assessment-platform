@@ -73,7 +73,7 @@
 </div>
 
 <script type="module">
-import { loadTestSession, clearTestSession } from '/js/utils.js'
+import { loadTestSession, clearTestSession, escHtml } from '/js/utils.js'
 
 document.addEventListener('DOMContentLoaded', () => {
   document.exitFullscreen?.().catch(() => {})
@@ -116,7 +116,6 @@ setTimeout(() => {
     })
 }, 1200)
 
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 </script>
 </body>
 </html>

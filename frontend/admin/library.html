@@ -180,7 +180,7 @@
 
 <script type="module">
 import api from '/js/api.js'
-import { toastSuccess, toastError, openModal, closeModal, confirm, timeAgo } from '/js/utils.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, timeAgo, escHtml } from '/js/utils.js'
 
 const adminToken = localStorage.getItem('admin_token')
 if (!adminToken) { window.location.replace('/login.html'); throw 0 }
@@ -275,7 +275,6 @@ function renderLibrary() {
     </div>`).join('')
 }
 
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 
 // ── Type switcher in modal ──
 document.getElementById('lib-q-type').addEventListener('change', function() {

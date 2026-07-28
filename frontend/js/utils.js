@@ -190,6 +190,12 @@ export function roundTypeBadge(type) {
   return `<span class="badge badge-${color}">${label}</span>`
 }
 
+// ---- HTML escaping ----
+
+export function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 // ---- Score helpers ----
 
 export function scoreColor(score, cutoff) {

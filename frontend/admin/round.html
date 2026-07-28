@@ -316,7 +316,7 @@
 
 <script type="module">
 import api from '/js/api.js'
-import { toastSuccess, toastError, openModal, closeModal, confirm, formatDate, statusBadge, roundStatusBadge, roundTypeBadge } from '/js/utils.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, formatDate, statusBadge, roundStatusBadge, roundTypeBadge, escHtml } from '/js/utils.js'
 
 const token = localStorage.getItem('admin_token')
 if (!token) { window.location.replace('/login.html'); throw 0 }
@@ -452,7 +452,6 @@ document.getElementById('form-edit-round').addEventListener('submit', async e =>
   finally { btn.disabled = false; btn.textContent = 'Save Changes' }
 })
 
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 
 function renderQuestions() {
   const qs = round.questions || []

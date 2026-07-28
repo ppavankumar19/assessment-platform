@@ -195,7 +195,7 @@
 
 <script type="module">
 import api from '/js/api.js'
-import { toastSuccess, toastError, openModal, closeModal, confirm, roundStatusBadge, roundTypeBadge, timeAgo } from '/js/utils.js'
+import { toastSuccess, toastError, openModal, closeModal, confirm, roundStatusBadge, roundTypeBadge, timeAgo, escHtml } from '/js/utils.js'
 
 const token = localStorage.getItem('admin_token')
 if (!token) { window.location.replace('/login.html'); throw 0 }
@@ -305,10 +305,6 @@ function renderRounds(rounds) {
       </div>
     </div>`
   }).join('')
-}
-
-function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
 document.getElementById('btn-new-round').addEventListener('click', () => openModal('modal-new-round'))
