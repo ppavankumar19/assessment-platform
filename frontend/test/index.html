@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assessment Portal</title>
+  <meta name="description" content="Online proctored technical assessments. Secure, browser-based evaluation with live coding and output prediction challenges.">
+  <meta property="og:title" content="Assessment Portal">
+  <meta property="og:description" content="Online proctored technical assessments. Secure, browser-based evaluation with live coding and output prediction challenges.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://assessment-platform-x8dl.onrender.com/test/">
+  <meta property="og:image" content="https://assessment-platform-x8dl.onrender.com/og-image.avif">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Assessment Portal">
+  <meta name="twitter:description" content="Online proctored technical assessments. Secure, browser-based evaluation with live coding and output prediction challenges.">
+  <meta name="twitter:image" content="https://assessment-platform-x8dl.onrender.com/og-image.avif">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body style="background:var(--bg-950)">
@@ -44,7 +54,7 @@
 
 <script type="module">
 import api from '/js/api.js'
-import { roundTypeBadge } from '/js/utils.js'
+import { roundTypeBadge, escHtml } from '/js/utils.js'
 
 const token = localStorage.getItem('admin_token')
 const navUser = document.getElementById('nav-user')
@@ -104,10 +114,6 @@ async function loadRounds() {
         <p style="color:var(--red-400)">Failed to load assessments: ${escHtml(e.message)}</p>
       </div>`
   }
-}
-
-function escHtml(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
 await loadRounds()
